@@ -6,9 +6,11 @@ import typer
 
 from stock_agents import __version__
 from stock_agents.data.collector import collect_all_facts
+from stock_agents.doctor import run_doctor
 from stock_agents.domain.enums import Role
 from stock_agents.orchestration.pipeline import run_mock_analysis
 from stock_agents.orchestration.task_builder import build_agent_task, render_task
+from stock_agents.runners.hermes import HermesRunner
 from stock_agents.runners.mock import MockRunner
 
 app = typer.Typer(
@@ -31,9 +33,15 @@ def _main(
 
 
 @app.command()
-def doctor() -> None:
+def doctor(
+    smoke_runner: str = typer.Option("mock", "--smoke-runner", help="Runner smoke check: none, mock, or hermes."),
+    hermes_executable: str = typer.Option("hermes", "--hermes-executable", help="Hermes executable to inspect."),
+) -> None:
     """Check local runner prerequisites without requiring API keys."""
-    typer.echo("stock-agents doctor: mock runner available; Hermes/Codex checks are not implemented yet.")
+    try:
+        typer.echo(run_doctor(smoke_runner=smoke_runner, hermes_executable=hermes_executable))
+    except ValueError as exc:
+        raise typer.BadParameter(str(exc)) from exc
 
 
 @app.command("build-tasks")
@@ -51,13 +59,37 @@ def build_tasks(
 @app.command("run-task")
 def run_task(
     task_file: Path = typer.Argument(..., help="Rendered task markdown file."),
-    runner: str = typer.Option("mock", "--runner", help="Runner name. Only mock is implemented in this milestone."),
+    runner: str = typer.Option("mock", "--runner", help="Runner name: mock or hermes."),
+    provider: str | None = typer.Option(None, "--provider", help="Optional Hermes provider override."),
+    model: str | None = typer.Option(None, "--model", help="Optional Hermes model override."),
+    hermes_executable: str = typer.Option("hermes", "--hermes-executable", help="Hermes executable for --runner hermes."),
+    timeout_seconds: int = typer.Option(60, "--timeout-seconds", min=1, help="Runner timeout in seconds."),
 ) -> None:
     """Run a rendered task package with a local runner."""
-    if runner != "mock":
-        raise typer.BadParameter("only --runner mock is implemented in Phase A-C")
-    result = MockRunner().run(task_file.read_text(), cwd=task_file.parent, timeout_seconds=60)
+    prompt = task_file.read_text(encoding="utf-8")
+    runner_cwd = _runner_cwd_for_task(task_file)
+    if runner == "mock":
+        result = MockRunner().run(prompt, cwd=runner_cwd, timeout_seconds=timeout_seconds)
+    elif runner == "hermes":
+        result = HermesRunner(executable=hermes_executable, provider=provider, model=model).run(
+            prompt,
+            cwd=runner_cwd,
+            timeout_seconds=timeout_seconds,
+        )
+    else:
+        raise typer.BadParameter("runner must be one of: mock, hermes")
+
+    if result.stderr:
+        typer.echo(result.stderr, err=True)
     typer.echo(result.stdout)
+    if result.exit_code != 0:
+        raise typer.Exit(result.exit_code)
+
+def _runner_cwd_for_task(task_file: Path) -> Path:
+    resolved_task_file = task_file.resolve()
+    if resolved_task_file.parent.name == "tasks":
+        return resolved_task_file.parent.parent
+    return resolved_task_file.parent
 
 
 @app.command()
