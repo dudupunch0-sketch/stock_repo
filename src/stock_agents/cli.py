@@ -7,6 +7,7 @@ import typer
 from stock_agents import __version__
 from stock_agents.data.collector import collect_all_facts
 from stock_agents.domain.enums import Role
+from stock_agents.orchestration.pipeline import run_mock_analysis
 from stock_agents.orchestration.task_builder import build_agent_task, render_task
 from stock_agents.runners.mock import MockRunner
 
@@ -81,9 +82,31 @@ def collect(
 
 
 @app.command()
-def analyze() -> None:
-    """Run the full analysis pipeline. Placeholder for Phase E."""
-    typer.echo("analyze command placeholder: mock pipeline starts in Phase E.")
+def analyze(
+    ticker: str = typer.Argument(..., help="Ticker symbol, e.g. SPY."),
+    date: str = typer.Option(..., "--date", help="Trade date in YYYY-MM-DD format."),
+    runner: str = typer.Option("mock", "--runner", help="Runner name. Only mock is implemented in Phase E."),
+    language: str = typer.Option("Korean", "--language", help="Output language for human-readable fields."),
+    depth: str = typer.Option("shallow", "--depth", help="Pipeline depth. Only shallow is implemented in Phase E."),
+    output_dir: Path = typer.Option(Path("runs"), "--output-dir", help="Base directory for run artifacts."),
+    run_id: str | None = typer.Option(None, "--run-id", help="Optional deterministic run id for tests/reproducibility."),
+) -> None:
+    """Run the mock full analysis pipeline."""
+    if runner != "mock":
+        raise typer.BadParameter("only --runner mock is implemented in Phase E")
+    try:
+        result = run_mock_analysis(
+            ticker=ticker,
+            trade_date=date,
+            output_dir=output_dir,
+            run_id=run_id,
+            language=language,
+            depth=depth,
+        )
+    except ValueError as exc:
+        raise typer.BadParameter(str(exc)) from exc
+    typer.echo(str(result.run_dir))
+    typer.echo(str(result.final_report_path))
 
 
 def main() -> None:
