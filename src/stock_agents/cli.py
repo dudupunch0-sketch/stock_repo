@@ -5,6 +5,7 @@ from pathlib import Path
 import typer
 
 from stock_agents import __version__
+from stock_agents.data.collector import collect_all_facts
 from stock_agents.domain.enums import Role
 from stock_agents.orchestration.task_builder import build_agent_task, render_task
 from stock_agents.runners.mock import MockRunner
@@ -65,9 +66,18 @@ def validate() -> None:
 
 
 @app.command()
-def collect() -> None:
-    """Collect deterministic market facts. Placeholder for Phase D."""
-    typer.echo("collect command placeholder: data collection starts in Phase D.")
+def collect(
+    ticker: str = typer.Argument(..., help="Ticker symbol, e.g. SPY."),
+    date: str = typer.Option(..., "--date", help="Trade date in YYYY-MM-DD format."),
+    output_dir: Path = typer.Option(Path("runs"), "--output-dir", help="Base directory for run artifacts."),
+    run_id: str | None = typer.Option(None, "--run-id", help="Optional deterministic run id for tests/reproducibility."),
+) -> None:
+    """Collect minimum fact artifacts for a run directory."""
+    try:
+        collected = collect_all_facts(ticker=ticker, trade_date=date, output_dir=output_dir, run_id=run_id)
+    except ValueError as exc:
+        raise typer.BadParameter(str(exc)) from exc
+    typer.echo(str(collected.run_dir))
 
 
 @app.command()
