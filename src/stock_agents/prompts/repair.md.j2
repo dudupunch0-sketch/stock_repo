@@ -1,0 +1,10 @@
+# Repair attempt {{ attempt_number }} for {{ task.task_id }}
+
+The previous runner output could not be validated. Return a corrected output for the same task.
+
+## Repair rules
+- Return exactly one corrected JSON object. No markdown fences. No prose before or after JSON.
+- Do not add new facts, prices, dates, sources, or claims that were absent from the original task.
+- Only correct structure, missing required fields, enum values, and type/format issues.
+- Keep human-readable fields in the requested language.
+- Preserve the intended role, ticker, and trade_date.

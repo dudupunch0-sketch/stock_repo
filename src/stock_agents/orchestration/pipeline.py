@@ -9,11 +9,14 @@ from pydantic import BaseModel
 from stock_agents.data.collector import collect_all_facts
 from stock_agents.domain.enums import Role
 from stock_agents.orchestration.checkpoints import new_checkpoint_state, write_checkpoint
+from stock_agents.orchestration.repair import build_repair_task
 from stock_agents.orchestration.task_builder import build_agent_task, render_task
 from stock_agents.orchestration.validator import extract_json_object, validate_output_for_role
 from stock_agents.reporting.renderer import render_final_report
+from stock_agents.runners.base import AgentRunner
 from stock_agents.runners.mock import MockRunner
 from stock_agents.schemas.outputs import PortfolioDecisionOutput
+from stock_agents.schemas.tasks import AgentTask
 
 _SHALLOW_ROLE_SEQUENCE = (
     Role.MARKET_ANALYST,
@@ -44,8 +47,31 @@ def run_mock_analysis(
     language: str = "Korean",
     depth: Literal["shallow"] | str = "shallow",
 ) -> PipelineResult:
+    return run_shallow_analysis(
+        ticker=ticker,
+        trade_date=trade_date,
+        runner=MockRunner(),
+        output_dir=output_dir,
+        run_id=run_id,
+        language=language,
+        depth=depth,
+        timeout_seconds=60,
+    )
+
+
+def run_shallow_analysis(
+    *,
+    ticker: str,
+    trade_date: str,
+    runner: AgentRunner,
+    output_dir: str | Path = "runs",
+    run_id: str | None = None,
+    language: str = "Korean",
+    depth: Literal["shallow"] | str = "shallow",
+    timeout_seconds: int = 60,
+) -> PipelineResult:
     if depth != "shallow":
-        raise ValueError("only shallow depth is implemented for the mock Phase E pipeline")
+        raise ValueError("only shallow depth is implemented")
 
     collected = collect_all_facts(ticker=ticker, trade_date=trade_date, output_dir=output_dir, run_id=run_id)
     run_dir = collected.run_dir
@@ -55,7 +81,6 @@ def run_mock_analysis(
     state.current_step = "market_analyst"
     write_checkpoint(run_dir, state)
 
-    runner = MockRunner()
     completed_roles: list[Role] = []
     final_decision: PortfolioDecisionOutput | None = None
 
@@ -68,15 +93,20 @@ def run_mock_analysis(
 
         state.current_step = role.value
         write_checkpoint(run_dir, state)
-        runner_result = runner.run(task_text, cwd=run_dir, timeout_seconds=60)
-        raw_path = run_dir / "outputs" / f"{task.task_id}.attempt0.raw.txt"
-        raw_path.parent.mkdir(parents=True, exist_ok=True)
-        raw_path.write_text(runner_result.stdout + "\n", encoding="utf-8")
+        try:
+            validated, output_path = _run_role_with_repair(
+                task=task,
+                task_text=task_text,
+                runner=runner,
+                run_dir=run_dir,
+                timeout_seconds=timeout_seconds,
+            )
+        except Exception:
+            state.status = "failed_validation"
+            state.current_step = role.value
+            write_checkpoint(run_dir, state)
+            raise
 
-        payload = extract_json_object(runner_result.stdout)
-        validated = validate_output_for_role(role, payload)
-        output_path = run_dir / "outputs" / f"{task.task_id}.attempt0.json"
-        output_path.write_text(validated.model_dump_json(indent=2) + "\n", encoding="utf-8")
         latest_path = run_dir / "outputs" / f"{task.task_id}.latest.json"
         latest_path.write_text(output_path.read_text(encoding="utf-8"), encoding="utf-8")
 
@@ -87,7 +117,7 @@ def run_mock_analysis(
             final_decision = validated  # type: ignore[assignment]
 
     if final_decision is None or not isinstance(final_decision, PortfolioDecisionOutput):
-        raise RuntimeError("mock pipeline did not produce a portfolio decision")
+        raise RuntimeError("pipeline did not produce a portfolio decision")
 
     report_text = render_final_report(final_decision, language=language)
     final_report_path = run_dir / "reports" / "final_report.md"
@@ -106,3 +136,57 @@ def run_mock_analysis(
     state.current_step = "complete"
     write_checkpoint(run_dir, state)
     return PipelineResult(run_dir=run_dir, final_report_path=final_report_path, completed_roles=completed_roles)
+
+
+def _run_role_with_repair(
+    *,
+    task: AgentTask,
+    task_text: str,
+    runner: AgentRunner,
+    run_dir: Path,
+    timeout_seconds: int,
+):
+    attempt_number = 0
+    prompt = task_text
+
+    while True:
+        runner_result = runner.run(prompt, cwd=run_dir, timeout_seconds=timeout_seconds)
+        raw_path = run_dir / "outputs" / f"{task.task_id}.attempt{attempt_number}.raw.txt"
+        raw_path.parent.mkdir(parents=True, exist_ok=True)
+        _write_text_with_trailing_newline(raw_path, runner_result.stdout)
+
+        if runner_result.exit_code != 0:
+            raise RuntimeError(
+                f"runner {runner_result.runner} failed for {task.task_id} "
+                f"with exit code {runner_result.exit_code}: {runner_result.stderr}"
+            )
+
+        try:
+            payload = extract_json_object(runner_result.stdout)
+            validated = validate_output_for_role(task.role, payload)
+        except Exception as exc:
+            if attempt_number >= task.max_repair_attempts:
+                raise RuntimeError(
+                    f"validation failed for {task.task_id} after {attempt_number + 1} attempt(s): {exc}"
+                ) from exc
+            attempt_number += 1
+            prompt = build_repair_task(
+                task=task,
+                original_task_text=task_text,
+                raw_output=runner_result.stdout,
+                validation_error=str(exc),
+                attempt_number=attempt_number,
+            )
+            repair_path = run_dir / "repairs" / f"{task.task_id}.attempt{attempt_number}.repair.task.md"
+            repair_path.parent.mkdir(parents=True, exist_ok=True)
+            repair_path.write_text(prompt, encoding="utf-8")
+            continue
+
+        output_path = run_dir / "outputs" / f"{task.task_id}.attempt{attempt_number}.json"
+        output_path.write_text(validated.model_dump_json(indent=2) + "\n", encoding="utf-8")
+        return validated, output_path
+
+
+def _write_text_with_trailing_newline(path: Path, text: str) -> None:
+    suffix = "" if text.endswith("\n") else "\n"
+    path.write_text(text + suffix, encoding="utf-8")
