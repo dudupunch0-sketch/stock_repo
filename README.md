@@ -2,7 +2,7 @@
 
 `stock-agents` is a TradingAgents-inspired CLI that uses file-handoff task packages instead of direct LLM API calls.
 
-It collects deterministic fact artifacts, renders role-specific task prompts, runs an external runner (`mock` or `hermes`), validates JSON outputs with Pydantic schemas, performs one bounded repair attempt, checkpoints the run, and renders a final markdown report.
+It collects deterministic fact artifacts, renders role-specific task prompts, runs an external runner (`mock`, `hermes`, or `codex`), validates JSON outputs with Pydantic schemas, performs one bounded repair attempt, checkpoints the run, and renders a final markdown report.
 
 This project is research assistance only, not financial advice. No claim is guaranteed; verify data independently.
 
@@ -15,6 +15,7 @@ Implemented:
 - Safe run-directory path construction.
 - Deterministic `MockRunner` for local tests without network, Hermes, Codex, or API keys.
 - Hermes CLI runner with provider/model/executable options.
+- Codex CLI runner with executable/model/reasoning-effort options and per-run logs under `logs/codex/`.
 - Shallow full pipeline:
   - market analyst
   - news analyst
@@ -33,7 +34,7 @@ Implemented:
 Known limitations:
 
 - Only `--depth shallow` is implemented.
-- `CodexRunner` is not implemented yet.
+- Codex requires a working local `codex exec` login; `codex login status` alone is not enough. Use `stock-agents doctor --smoke-runner codex` to verify it.
 - Resume continues from checkpointed role outputs, but does not yet rebuild missing/corrupt fact inputs.
 - Market OHLCV uses `yfinance` when available, then falls back to deterministic offline fixture bars.
 - News, fundamentals, and sentiment providers are placeholders in the local collector.
@@ -51,9 +52,10 @@ python -m pip install -e .
 ```bash
 stock-agents doctor
 stock-agents doctor --smoke-runner hermes
+stock-agents doctor --smoke-runner codex
 ```
 
-`OPENAI_API_KEY` is not required for the Hermes/Codex CLI path. Hermes auth is handled by the local Hermes Agent installation.
+`OPENAI_API_KEY` is not required for the Hermes/Codex CLI path. Hermes auth is handled by the local Hermes Agent installation; Codex auth is handled by the local Codex CLI login.
 
 ## Run a local mock analysis
 
@@ -99,6 +101,29 @@ stock-agents analyze SPY \
 ```
 
 On this machine, a real Hermes shallow run has completed successfully. Because this path spends live model calls, prefer `--runner mock` for routine regression checks.
+
+## Run with Codex
+
+First verify that `codex exec` works, not only that the CLI reports logged in:
+
+```bash
+stock-agents doctor --smoke-runner codex
+```
+
+Then run a shallow analysis:
+
+```bash
+stock-agents analyze SPY \
+  --date 2026-01-15 \
+  --runner codex \
+  --model gpt-5.5 \
+  --reasoning-effort medium \
+  --timeout-seconds 240 \
+  --language Korean \
+  --depth shallow
+```
+
+Codex event streams, stderr, and final-message captures are stored under each run directory's `logs/codex/` folder.
 
 ## Build or run one task
 

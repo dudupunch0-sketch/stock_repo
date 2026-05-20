@@ -12,6 +12,7 @@ from stock_agents.domain.enums import Role
 from stock_agents.orchestration.pipeline import resume_shallow_analysis, run_mock_analysis, run_shallow_analysis
 from stock_agents.orchestration.task_builder import build_agent_task, render_task
 from stock_agents.orchestration.validator import extract_json_object, validate_output_for_role
+from stock_agents.runners.codex import CodexRunner
 from stock_agents.runners.hermes import HermesRunner
 from stock_agents.runners.mock import MockRunner
 
@@ -36,12 +37,19 @@ def _main(
 
 @app.command()
 def doctor(
-    smoke_runner: str = typer.Option("mock", "--smoke-runner", help="Runner smoke check: none, mock, or hermes."),
+    smoke_runner: str = typer.Option("mock", "--smoke-runner", help="Runner smoke check: none, mock, hermes, or codex."),
     hermes_executable: str = typer.Option("hermes", "--hermes-executable", help="Hermes executable to inspect."),
+    codex_executable: str = typer.Option("codex", "--codex-executable", help="Codex executable to inspect."),
 ) -> None:
     """Check local runner prerequisites without requiring API keys."""
     try:
-        typer.echo(run_doctor(smoke_runner=smoke_runner, hermes_executable=hermes_executable))
+        typer.echo(
+            run_doctor(
+                smoke_runner=smoke_runner,
+                hermes_executable=hermes_executable,
+                codex_executable=codex_executable,
+            )
+        )
     except ValueError as exc:
         raise typer.BadParameter(str(exc)) from exc
 
@@ -61,10 +69,12 @@ def build_tasks(
 @app.command("run-task")
 def run_task(
     task_file: Path = typer.Argument(..., help="Rendered task markdown file."),
-    runner: str = typer.Option("mock", "--runner", help="Runner name: mock or hermes."),
+    runner: str = typer.Option("mock", "--runner", help="Runner name: mock, hermes, or codex."),
     provider: str | None = typer.Option(None, "--provider", help="Optional Hermes provider override."),
-    model: str | None = typer.Option(None, "--model", help="Optional Hermes model override."),
+    model: str | None = typer.Option(None, "--model", help="Optional Hermes/Codex model override."),
     hermes_executable: str = typer.Option("hermes", "--hermes-executable", help="Hermes executable for --runner hermes."),
+    codex_executable: str = typer.Option("codex", "--codex-executable", help="Codex executable for --runner codex."),
+    reasoning_effort: str = typer.Option("medium", "--reasoning-effort", help="Codex model reasoning effort."),
     timeout_seconds: int = typer.Option(60, "--timeout-seconds", min=1, help="Runner timeout in seconds."),
 ) -> None:
     """Run a rendered task package with a local runner."""
@@ -78,8 +88,18 @@ def run_task(
             cwd=runner_cwd,
             timeout_seconds=timeout_seconds,
         )
+    elif runner == "codex":
+        result = CodexRunner(
+            executable=codex_executable,
+            model=model or "gpt-5.5",
+            model_reasoning_effort=reasoning_effort,
+        ).run(
+            prompt,
+            cwd=runner_cwd,
+            timeout_seconds=timeout_seconds,
+        )
     else:
-        raise typer.BadParameter("runner must be one of: mock, hermes")
+        raise typer.BadParameter("runner must be one of: mock, hermes, codex")
 
     if result.stderr:
         typer.echo(result.stderr, err=True)
@@ -166,10 +186,12 @@ def collect(
 def analyze(
     ticker: str = typer.Argument(..., help="Ticker symbol, e.g. SPY."),
     date: str = typer.Option(..., "--date", help="Trade date in YYYY-MM-DD format."),
-    runner: str = typer.Option("mock", "--runner", help="Runner name: mock or hermes."),
+    runner: str = typer.Option("mock", "--runner", help="Runner name: mock, hermes, or codex."),
     provider: str | None = typer.Option(None, "--provider", help="Optional Hermes provider override."),
-    model: str | None = typer.Option(None, "--model", help="Optional Hermes model override."),
+    model: str | None = typer.Option(None, "--model", help="Optional Hermes/Codex model override."),
     hermes_executable: str = typer.Option("hermes", "--hermes-executable", help="Hermes executable for --runner hermes."),
+    codex_executable: str = typer.Option("codex", "--codex-executable", help="Codex executable for --runner codex."),
+    reasoning_effort: str = typer.Option("medium", "--reasoning-effort", help="Codex model reasoning effort."),
     timeout_seconds: int = typer.Option(60, "--timeout-seconds", min=1, help="Per-role runner timeout in seconds."),
     language: str = typer.Option("Korean", "--language", help="Output language for human-readable fields."),
     depth: str = typer.Option("shallow", "--depth", help="Pipeline depth. Only shallow is implemented."),
@@ -198,8 +220,23 @@ def analyze(
                 depth=depth,
                 timeout_seconds=timeout_seconds,
             )
+        elif runner == "codex":
+            result = run_shallow_analysis(
+                ticker=ticker,
+                trade_date=date,
+                runner=CodexRunner(
+                    executable=codex_executable,
+                    model=model or "gpt-5.5",
+                    model_reasoning_effort=reasoning_effort,
+                ),
+                output_dir=output_dir,
+                run_id=run_id,
+                language=language,
+                depth=depth,
+                timeout_seconds=timeout_seconds,
+            )
         else:
-            raise typer.BadParameter("runner must be one of: mock, hermes")
+            raise typer.BadParameter("runner must be one of: mock, hermes, codex")
     except ValueError as exc:
         raise typer.BadParameter(str(exc)) from exc
     typer.echo(str(result.run_dir))
@@ -209,10 +246,12 @@ def analyze(
 @app.command()
 def resume(
     run_dir: Path = typer.Argument(..., help="Existing run artifact directory to resume."),
-    runner: str = typer.Option("mock", "--runner", help="Runner name: mock or hermes."),
+    runner: str = typer.Option("mock", "--runner", help="Runner name: mock, hermes, or codex."),
     provider: str | None = typer.Option(None, "--provider", help="Optional Hermes provider override."),
-    model: str | None = typer.Option(None, "--model", help="Optional Hermes model override."),
+    model: str | None = typer.Option(None, "--model", help="Optional Hermes/Codex model override."),
     hermes_executable: str = typer.Option("hermes", "--hermes-executable", help="Hermes executable for --runner hermes."),
+    codex_executable: str = typer.Option("codex", "--codex-executable", help="Codex executable for --runner codex."),
+    reasoning_effort: str = typer.Option("medium", "--reasoning-effort", help="Codex model reasoning effort."),
     timeout_seconds: int = typer.Option(60, "--timeout-seconds", min=1, help="Per-role runner timeout in seconds."),
     language: str = typer.Option("Korean", "--language", help="Output language for human-readable fields."),
     depth: str = typer.Option("shallow", "--depth", help="Pipeline depth. Only shallow is implemented."),
@@ -223,8 +262,14 @@ def resume(
             selected_runner = MockRunner()
         elif runner == "hermes":
             selected_runner = HermesRunner(executable=hermes_executable, provider=provider, model=model)
+        elif runner == "codex":
+            selected_runner = CodexRunner(
+                executable=codex_executable,
+                model=model or "gpt-5.5",
+                model_reasoning_effort=reasoning_effort,
+            )
         else:
-            raise typer.BadParameter("runner must be one of: mock, hermes")
+            raise typer.BadParameter("runner must be one of: mock, hermes, codex")
         result = resume_shallow_analysis(
             run_dir=run_dir,
             runner=selected_runner,

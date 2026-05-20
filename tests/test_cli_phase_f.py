@@ -159,3 +159,58 @@ def test_run_task_cli_supports_hermes_runner(monkeypatch, tmp_path):
         "cwd": tmp_path,
         "timeout_seconds": 9,
     }
+
+
+def test_run_task_cli_supports_codex_runner(monkeypatch, tmp_path):
+    task_file = tmp_path / "sample.task.md"
+    task_file.write_text("role: market_analyst\nticker: SPY\ntrade_date: 2026-01-15\n", encoding="utf-8")
+    calls = {}
+
+    class FakeCodexRunner:
+        def __init__(self, *, executable="codex", model="gpt-5.5", model_reasoning_effort="medium"):
+            calls["executable"] = executable
+            calls["model"] = model
+            calls["model_reasoning_effort"] = model_reasoning_effort
+
+        def run(self, prompt: str, *, cwd: Path, timeout_seconds: int) -> RunnerResult:
+            calls["prompt"] = prompt
+            calls["cwd"] = cwd
+            calls["timeout_seconds"] = timeout_seconds
+            return RunnerResult(
+                runner="codex",
+                command=["codex", "exec"],
+                exit_code=0,
+                stdout='{"role": "market_analyst"}',
+                stderr="",
+                duration_seconds=0.01,
+            )
+
+    monkeypatch.setattr("stock_agents.cli.CodexRunner", FakeCodexRunner)
+    result = CliRunner().invoke(
+        app,
+        [
+            "run-task",
+            str(task_file),
+            "--runner",
+            "codex",
+            "--codex-executable",
+            "fake-codex",
+            "--model",
+            "gpt-5.5",
+            "--reasoning-effort",
+            "medium",
+            "--timeout-seconds",
+            "9",
+        ],
+    )
+
+    assert result.exit_code == 0, result.output
+    assert '{"role": "market_analyst"}' in result.output
+    assert calls == {
+        "executable": "fake-codex",
+        "model": "gpt-5.5",
+        "model_reasoning_effort": "medium",
+        "prompt": task_file.read_text(encoding="utf-8"),
+        "cwd": tmp_path,
+        "timeout_seconds": 9,
+    }
