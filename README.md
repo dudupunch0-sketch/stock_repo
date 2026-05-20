@@ -16,9 +16,11 @@ Implemented:
 - Deterministic `MockRunner` for local tests without network, Hermes, Codex, or API keys.
 - Hermes CLI runner with provider/model/executable options.
 - Codex CLI runner with executable/model/reasoning-effort options and per-run logs under `logs/codex/`.
-- Shallow full pipeline:
+- Shallow full pipeline with configurable analyst selection (`--analysts market,news` by default; `--analysts all` adds sentiment and fundamentals):
   - market analyst
+  - sentiment analyst (when selected)
   - news analyst
+  - fundamentals analyst (when selected)
   - bull researcher
   - bear researcher
   - research manager

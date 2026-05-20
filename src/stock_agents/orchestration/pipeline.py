@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import re
+from collections.abc import Sequence
 from pathlib import Path
 from typing import Literal
 
@@ -11,7 +12,7 @@ from stock_agents.data.collector import collect_all_facts
 from stock_agents.domain.enums import Role
 from stock_agents.orchestration.checkpoints import CheckpointState, new_checkpoint_state, read_checkpoint, write_checkpoint
 from stock_agents.orchestration.repair import build_repair_task
-from stock_agents.orchestration.task_builder import build_agent_task, render_task
+from stock_agents.orchestration.task_builder import ROLE_TASK_SPECS, build_agent_task, render_task
 from stock_agents.orchestration.validator import extract_json_object, validate_output_for_role
 from stock_agents.reporting.renderer import render_final_report
 from stock_agents.runners.base import AgentRunner
@@ -19,9 +20,14 @@ from stock_agents.runners.mock import MockRunner
 from stock_agents.schemas.outputs import PortfolioDecisionOutput
 from stock_agents.schemas.tasks import AgentTask
 
-_SHALLOW_ROLE_SEQUENCE = (
+_DEFAULT_ANALYST_ROLES = (Role.MARKET_ANALYST, Role.NEWS_ANALYST)
+_ALL_ANALYST_ROLES = (
     Role.MARKET_ANALYST,
+    Role.SENTIMENT_ANALYST,
     Role.NEWS_ANALYST,
+    Role.FUNDAMENTALS_ANALYST,
+)
+_POST_ANALYST_ROLE_SEQUENCE = (
     Role.BULL_RESEARCHER,
     Role.BEAR_RESEARCHER,
     Role.RESEARCH_MANAGER,
@@ -31,12 +37,94 @@ _SHALLOW_ROLE_SEQUENCE = (
     Role.RISK_NEUTRAL,
     Role.PORTFOLIO_MANAGER,
 )
+_ANALYST_ALIASES = {
+    "market": Role.MARKET_ANALYST,
+    "market_analyst": Role.MARKET_ANALYST,
+    "sentiment": Role.SENTIMENT_ANALYST,
+    "sentiment_analyst": Role.SENTIMENT_ANALYST,
+    "news": Role.NEWS_ANALYST,
+    "news_analyst": Role.NEWS_ANALYST,
+    "fundamental": Role.FUNDAMENTALS_ANALYST,
+    "fundamentals": Role.FUNDAMENTALS_ANALYST,
+    "fundamentals_analyst": Role.FUNDAMENTALS_ANALYST,
+}
+AnalystSelection = str | Sequence[str | Role] | None
 
 
 class PipelineResult(BaseModel):
     run_dir: Path
     final_report_path: Path
     completed_roles: list[Role]
+
+
+def resolve_analyst_roles(analysts: AnalystSelection = None) -> tuple[Role, ...]:
+    if analysts is None:
+        return _DEFAULT_ANALYST_ROLES
+
+    if isinstance(analysts, str):
+        tokens = [token.strip().lower() for token in analysts.split(",") if token.strip()]
+    else:
+        tokens = [token.value if isinstance(token, Role) else str(token).strip().lower() for token in analysts]
+
+    if not tokens or tokens == ["default"]:
+        return _DEFAULT_ANALYST_ROLES
+    if "all" in tokens:
+        if len(tokens) != 1:
+            raise ValueError("analyst selector 'all' cannot be combined with explicit analyst names")
+        return _ALL_ANALYST_ROLES
+
+    roles: list[Role] = []
+    for token in tokens:
+        role = _ANALYST_ALIASES.get(token)
+        if role is None:
+            valid = ", ".join(sorted({"all", "market", "sentiment", "news", "fundamentals"}))
+            raise ValueError(f"unknown analyst '{token}'. Valid analysts: {valid}")
+        if role not in roles:
+            roles.append(role)
+    return tuple(roles)
+
+
+def _role_sequence_for_analysts(analyst_roles: tuple[Role, ...]) -> tuple[Role, ...]:
+    return analyst_roles + _POST_ANALYST_ROLE_SEQUENCE
+
+
+def _task_for_role(
+    *,
+    role: Role,
+    ticker: str,
+    trade_date: str,
+    language: str,
+    analyst_roles: tuple[Role, ...],
+) -> AgentTask:
+    task = build_agent_task(role=role, ticker=ticker, trade_date=trade_date, language=language)
+    if role in {Role.BULL_RESEARCHER, Role.BEAR_RESEARCHER}:
+        dependency_output_paths = [
+            f"outputs/{ROLE_TASK_SPECS[analyst_role].task_id}.latest.json"
+            for analyst_role in analyst_roles
+        ]
+        return task.model_copy(update={"dependency_output_paths": dependency_output_paths})
+    return task
+
+
+def _record_analyst_roles_in_manifest(run_dir: Path, analyst_roles: tuple[Role, ...]) -> None:
+    manifest_path = run_dir / "manifest.json"
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    manifest["analyst_roles"] = [role.value for role in analyst_roles]
+    manifest_path.write_text(json.dumps(manifest, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+
+
+def _analyst_roles_for_resume(run_dir: Path, analysts: AnalystSelection) -> tuple[Role, ...]:
+    if analysts is not None:
+        return resolve_analyst_roles(analysts)
+    manifest_path = run_dir / "manifest.json"
+    try:
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    except FileNotFoundError:
+        return _DEFAULT_ANALYST_ROLES
+    saved_analysts = manifest.get("analyst_roles")
+    if not saved_analysts:
+        return _DEFAULT_ANALYST_ROLES
+    return resolve_analyst_roles(saved_analysts)
 
 
 def run_mock_analysis(
@@ -47,6 +135,7 @@ def run_mock_analysis(
     run_id: str | None = None,
     language: str = "Korean",
     depth: Literal["shallow"] | str = "shallow",
+    analysts: AnalystSelection = None,
 ) -> PipelineResult:
     return run_shallow_analysis(
         ticker=ticker,
@@ -57,6 +146,7 @@ def run_mock_analysis(
         language=language,
         depth=depth,
         timeout_seconds=60,
+        analysts=analysts,
     )
 
 
@@ -70,23 +160,27 @@ def run_shallow_analysis(
     language: str = "Korean",
     depth: Literal["shallow"] | str = "shallow",
     timeout_seconds: int = 60,
+    analysts: AnalystSelection = None,
 ) -> PipelineResult:
     if depth != "shallow":
         raise ValueError("only shallow depth is implemented")
+    analyst_roles = resolve_analyst_roles(analysts)
+    role_sequence = _role_sequence_for_analysts(analyst_roles)
 
     collected = collect_all_facts(ticker=ticker, trade_date=trade_date, output_dir=output_dir, run_id=run_id)
     run_dir = collected.run_dir
+    _record_analyst_roles_in_manifest(run_dir, analyst_roles)
     selected_run_id = run_dir.name
     state = new_checkpoint_state(run_id=selected_run_id, ticker=ticker, trade_date=trade_date)
     state.completed_steps.append("collect_facts")
-    state.current_step = "market_analyst"
+    state.current_step = analyst_roles[0].value
     write_checkpoint(run_dir, state)
 
     completed_roles: list[Role] = []
     final_decision: PortfolioDecisionOutput | None = None
 
-    for role in _SHALLOW_ROLE_SEQUENCE:
-        task = build_agent_task(role=role, ticker=ticker, trade_date=trade_date, language=language)
+    for role in role_sequence:
+        task = _task_for_role(role=role, ticker=ticker, trade_date=trade_date, language=language, analyst_roles=analyst_roles)
         task_path = run_dir / "tasks" / f"{task.task_id}.task.md"
         task_path.parent.mkdir(parents=True, exist_ok=True)
         task_text = render_task(task)
@@ -129,6 +223,7 @@ def run_shallow_analysis(
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
     manifest.setdefault("artifacts", {})["final_report"] = "reports/final_report.md"
     manifest["completed_roles"] = [role.value for role in completed_roles]
+    manifest["analyst_roles"] = [role.value for role in analyst_roles]
     manifest_path.write_text(json.dumps(manifest, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
 
     state.completed_steps.append("render_final_report")
@@ -146,17 +241,26 @@ def resume_shallow_analysis(
     language: str = "Korean",
     depth: Literal["shallow"] | str = "shallow",
     timeout_seconds: int = 60,
+    analysts: AnalystSelection = None,
 ) -> PipelineResult:
     if depth != "shallow":
         raise ValueError("only shallow depth is implemented")
 
     selected_run_dir = Path(run_dir)
+    analyst_roles = _analyst_roles_for_resume(selected_run_dir, analysts)
+    role_sequence = _role_sequence_for_analysts(analyst_roles)
     state = read_checkpoint(selected_run_dir)
     completed_roles: list[Role] = []
     final_decision: PortfolioDecisionOutput | None = None
 
-    for role in _SHALLOW_ROLE_SEQUENCE:
-        task = build_agent_task(role=role, ticker=state.ticker, trade_date=state.trade_date, language=language)
+    for role in role_sequence:
+        task = _task_for_role(
+            role=role,
+            ticker=state.ticker,
+            trade_date=state.trade_date,
+            language=language,
+            analyst_roles=analyst_roles,
+        )
         validated = _validated_latest_output(selected_run_dir, state, task)
         if role.value in state.completed_steps and validated is not None:
             completed_roles.append(role)
@@ -210,6 +314,7 @@ def resume_shallow_analysis(
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
     manifest.setdefault("artifacts", {})["final_report"] = "reports/final_report.md"
     manifest["completed_roles"] = [role.value for role in completed_roles]
+    manifest["analyst_roles"] = [role.value for role in analyst_roles]
     manifest_path.write_text(json.dumps(manifest, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
 
     if "render_final_report" not in state.completed_steps:

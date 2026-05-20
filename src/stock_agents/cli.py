@@ -195,6 +195,7 @@ def analyze(
     timeout_seconds: int = typer.Option(60, "--timeout-seconds", min=1, help="Per-role runner timeout in seconds."),
     language: str = typer.Option("Korean", "--language", help="Output language for human-readable fields."),
     depth: str = typer.Option("shallow", "--depth", help="Pipeline depth. Only shallow is implemented."),
+    analysts: str = typer.Option("market,news", "--analysts", help="Comma-separated analyst roles: market,news,sentiment,fundamentals, or all."),
     output_dir: Path = typer.Option(Path("runs"), "--output-dir", help="Base directory for run artifacts."),
     run_id: str | None = typer.Option(None, "--run-id", help="Optional deterministic run id for tests/reproducibility."),
 ) -> None:
@@ -208,6 +209,7 @@ def analyze(
                 run_id=run_id,
                 language=language,
                 depth=depth,
+                analysts=analysts,
             )
         elif runner == "hermes":
             result = run_shallow_analysis(
@@ -219,6 +221,7 @@ def analyze(
                 language=language,
                 depth=depth,
                 timeout_seconds=timeout_seconds,
+                analysts=analysts,
             )
         elif runner == "codex":
             result = run_shallow_analysis(
@@ -234,6 +237,7 @@ def analyze(
                 language=language,
                 depth=depth,
                 timeout_seconds=timeout_seconds,
+                analysts=analysts,
             )
         else:
             raise typer.BadParameter("runner must be one of: mock, hermes, codex")
@@ -255,6 +259,7 @@ def resume(
     timeout_seconds: int = typer.Option(60, "--timeout-seconds", min=1, help="Per-role runner timeout in seconds."),
     language: str = typer.Option("Korean", "--language", help="Output language for human-readable fields."),
     depth: str = typer.Option("shallow", "--depth", help="Pipeline depth. Only shallow is implemented."),
+    analysts: str | None = typer.Option(None, "--analysts", help="Comma-separated analyst roles used by the run; omit to reuse manifest/default."),
 ) -> None:
     """Resume an existing shallow analysis run from its checkpoint."""
     try:
@@ -276,6 +281,7 @@ def resume(
             language=language,
             depth=depth,
             timeout_seconds=timeout_seconds,
+            analysts=analysts,
         )
     except ValueError as exc:
         raise typer.BadParameter(str(exc)) from exc
