@@ -196,6 +196,7 @@ def analyze(
     language: str = typer.Option("Korean", "--language", help="Output language for human-readable fields."),
     depth: str = typer.Option("shallow", "--depth", help="Pipeline depth. Only shallow is implemented."),
     analysts: str = typer.Option("market,news", "--analysts", help="Comma-separated analyst roles: market,news,sentiment,fundamentals, or all."),
+    debate_rounds: int = typer.Option(1, "--debate-rounds", min=1, help="Number of bull/bear research debate rounds."),
     output_dir: Path = typer.Option(Path("runs"), "--output-dir", help="Base directory for run artifacts."),
     run_id: str | None = typer.Option(None, "--run-id", help="Optional deterministic run id for tests/reproducibility."),
 ) -> None:
@@ -210,6 +211,7 @@ def analyze(
                 language=language,
                 depth=depth,
                 analysts=analysts,
+                debate_rounds=debate_rounds,
             )
         elif runner == "hermes":
             result = run_shallow_analysis(
@@ -222,6 +224,7 @@ def analyze(
                 depth=depth,
                 timeout_seconds=timeout_seconds,
                 analysts=analysts,
+                debate_rounds=debate_rounds,
             )
         elif runner == "codex":
             result = run_shallow_analysis(
@@ -238,6 +241,7 @@ def analyze(
                 depth=depth,
                 timeout_seconds=timeout_seconds,
                 analysts=analysts,
+                debate_rounds=debate_rounds,
             )
         else:
             raise typer.BadParameter("runner must be one of: mock, hermes, codex")
@@ -260,6 +264,7 @@ def resume(
     language: str = typer.Option("Korean", "--language", help="Output language for human-readable fields."),
     depth: str = typer.Option("shallow", "--depth", help="Pipeline depth. Only shallow is implemented."),
     analysts: str | None = typer.Option(None, "--analysts", help="Comma-separated analyst roles used by the run; omit to reuse manifest/default."),
+    debate_rounds: int | None = typer.Option(None, "--debate-rounds", min=1, help="Number of bull/bear research debate rounds; omit to reuse manifest/default."),
 ) -> None:
     """Resume an existing shallow analysis run from its checkpoint."""
     try:
@@ -282,6 +287,7 @@ def resume(
             depth=depth,
             timeout_seconds=timeout_seconds,
             analysts=analysts,
+            debate_rounds=debate_rounds,
         )
     except ValueError as exc:
         raise typer.BadParameter(str(exc)) from exc

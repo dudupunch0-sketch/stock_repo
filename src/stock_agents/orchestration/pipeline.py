@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import re
 from collections.abc import Sequence
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Literal
 
@@ -27,9 +28,7 @@ _ALL_ANALYST_ROLES = (
     Role.NEWS_ANALYST,
     Role.FUNDAMENTALS_ANALYST,
 )
-_POST_ANALYST_ROLE_SEQUENCE = (
-    Role.BULL_RESEARCHER,
-    Role.BEAR_RESEARCHER,
+_POST_DEBATE_ROLE_SEQUENCE = (
     Role.RESEARCH_MANAGER,
     Role.TRADER,
     Role.RISK_AGGRESSIVE,
@@ -49,6 +48,12 @@ _ANALYST_ALIASES = {
     "fundamentals_analyst": Role.FUNDAMENTALS_ANALYST,
 }
 AnalystSelection = str | Sequence[str | Role] | None
+
+
+@dataclass(frozen=True)
+class PipelineStep:
+    role: Role
+    round_number: int | None = None
 
 
 class PipelineResult(BaseModel):
@@ -84,32 +89,81 @@ def resolve_analyst_roles(analysts: AnalystSelection = None) -> tuple[Role, ...]
     return tuple(roles)
 
 
-def _role_sequence_for_analysts(analyst_roles: tuple[Role, ...]) -> tuple[Role, ...]:
-    return analyst_roles + _POST_ANALYST_ROLE_SEQUENCE
+def resolve_debate_rounds(debate_rounds: int) -> int:
+    if debate_rounds < 1:
+        raise ValueError("debate_rounds must be at least 1")
+    return debate_rounds
 
 
-def _task_for_role(
+def _steps_for_analysis(analyst_roles: tuple[Role, ...], *, debate_rounds: int) -> tuple[PipelineStep, ...]:
+    rounds = resolve_debate_rounds(debate_rounds)
+    steps = [PipelineStep(role=role) for role in analyst_roles]
+    if rounds == 1:
+        steps.extend((PipelineStep(role=Role.BULL_RESEARCHER), PipelineStep(role=Role.BEAR_RESEARCHER)))
+    else:
+        for round_number in range(1, rounds + 1):
+            steps.extend(
+                (
+                    PipelineStep(role=Role.BULL_RESEARCHER, round_number=round_number),
+                    PipelineStep(role=Role.BEAR_RESEARCHER, round_number=round_number),
+                )
+            )
+    steps.extend(PipelineStep(role=role) for role in _POST_DEBATE_ROLE_SEQUENCE)
+    return tuple(steps)
+
+
+def _task_for_step(
     *,
-    role: Role,
+    step: PipelineStep,
     ticker: str,
     trade_date: str,
     language: str,
     analyst_roles: tuple[Role, ...],
+    debate_rounds: int,
 ) -> AgentTask:
+    role = step.role
     task = build_agent_task(role=role, ticker=ticker, trade_date=trade_date, language=language)
     if role in {Role.BULL_RESEARCHER, Role.BEAR_RESEARCHER}:
         dependency_output_paths = [
             f"outputs/{ROLE_TASK_SPECS[analyst_role].task_id}.latest.json"
             for analyst_role in analyst_roles
         ]
-        return task.model_copy(update={"dependency_output_paths": dependency_output_paths})
+        updates: dict[str, object] = {"dependency_output_paths": dependency_output_paths}
+        if step.round_number is not None:
+            task_id = f"{task.task_id}_round{step.round_number}"
+            if step.round_number > 1:
+                previous_round = step.round_number - 1
+                dependency_output_paths.extend(
+                    (
+                        f"outputs/03_bull_researcher_round{previous_round}.latest.json",
+                        f"outputs/04_bear_researcher_round{previous_round}.latest.json",
+                    )
+                )
+            updates.update(
+                {
+                    "task_id": task_id,
+                    "output_path": f"outputs/{task_id}.attempt0.json",
+                    "objective": f"Debate round {step.round_number} of {debate_rounds}. {task.objective}",
+                }
+            )
+        return task.model_copy(update=updates)
+    if role is Role.RESEARCH_MANAGER and debate_rounds > 1:
+        return task.model_copy(
+            update={
+                "dependency_output_paths": [
+                    f"outputs/03_bull_researcher_round{debate_rounds}.latest.json",
+                    f"outputs/04_bear_researcher_round{debate_rounds}.latest.json",
+                ]
+            }
+        )
     return task
 
 
-def _record_analyst_roles_in_manifest(run_dir: Path, analyst_roles: tuple[Role, ...]) -> None:
+def _record_run_options_in_manifest(run_dir: Path, *, analyst_roles: tuple[Role, ...], debate_rounds: int) -> None:
     manifest_path = run_dir / "manifest.json"
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
     manifest["analyst_roles"] = [role.value for role in analyst_roles]
+    manifest["debate_rounds"] = debate_rounds
     manifest_path.write_text(json.dumps(manifest, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
 
 
@@ -127,6 +181,23 @@ def _analyst_roles_for_resume(run_dir: Path, analysts: AnalystSelection) -> tupl
     return resolve_analyst_roles(saved_analysts)
 
 
+def _debate_rounds_for_resume(run_dir: Path, debate_rounds: int | None) -> int:
+    if debate_rounds is not None:
+        return resolve_debate_rounds(debate_rounds)
+    manifest_path = run_dir / "manifest.json"
+    try:
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    except FileNotFoundError:
+        return 1
+    return resolve_debate_rounds(int(manifest.get("debate_rounds", 1)))
+
+
+def _checkpoint_key(task: AgentTask) -> str:
+    if task.task_id == ROLE_TASK_SPECS[task.role].task_id:
+        return task.role.value
+    return task.task_id
+
+
 def run_mock_analysis(
     *,
     ticker: str,
@@ -136,6 +207,7 @@ def run_mock_analysis(
     language: str = "Korean",
     depth: Literal["shallow"] | str = "shallow",
     analysts: AnalystSelection = None,
+    debate_rounds: int = 1,
 ) -> PipelineResult:
     return run_shallow_analysis(
         ticker=ticker,
@@ -147,6 +219,7 @@ def run_mock_analysis(
         depth=depth,
         timeout_seconds=60,
         analysts=analysts,
+        debate_rounds=debate_rounds,
     )
 
 
@@ -161,15 +234,17 @@ def run_shallow_analysis(
     depth: Literal["shallow"] | str = "shallow",
     timeout_seconds: int = 60,
     analysts: AnalystSelection = None,
+    debate_rounds: int = 1,
 ) -> PipelineResult:
     if depth != "shallow":
         raise ValueError("only shallow depth is implemented")
     analyst_roles = resolve_analyst_roles(analysts)
-    role_sequence = _role_sequence_for_analysts(analyst_roles)
+    debate_round_count = resolve_debate_rounds(debate_rounds)
+    steps = _steps_for_analysis(analyst_roles, debate_rounds=debate_round_count)
 
     collected = collect_all_facts(ticker=ticker, trade_date=trade_date, output_dir=output_dir, run_id=run_id)
     run_dir = collected.run_dir
-    _record_analyst_roles_in_manifest(run_dir, analyst_roles)
+    _record_run_options_in_manifest(run_dir, analyst_roles=analyst_roles, debate_rounds=debate_round_count)
     selected_run_id = run_dir.name
     state = new_checkpoint_state(run_id=selected_run_id, ticker=ticker, trade_date=trade_date)
     state.completed_steps.append("collect_facts")
@@ -179,14 +254,23 @@ def run_shallow_analysis(
     completed_roles: list[Role] = []
     final_decision: PortfolioDecisionOutput | None = None
 
-    for role in role_sequence:
-        task = _task_for_role(role=role, ticker=ticker, trade_date=trade_date, language=language, analyst_roles=analyst_roles)
+    for step in steps:
+        role = step.role
+        task = _task_for_step(
+            step=step,
+            ticker=ticker,
+            trade_date=trade_date,
+            language=language,
+            analyst_roles=analyst_roles,
+            debate_rounds=debate_round_count,
+        )
+        step_key = _checkpoint_key(task)
         task_path = run_dir / "tasks" / f"{task.task_id}.task.md"
         task_path.parent.mkdir(parents=True, exist_ok=True)
         task_text = render_task(task)
         task_path.write_text(task_text, encoding="utf-8")
 
-        state.current_step = role.value
+        state.current_step = step_key
         write_checkpoint(run_dir, state)
         try:
             validated, output_path = _run_role_with_repair(
@@ -198,15 +282,18 @@ def run_shallow_analysis(
             )
         except Exception:
             state.status = "failed_validation"
-            state.current_step = role.value
+            state.current_step = step_key
             write_checkpoint(run_dir, state)
             raise
 
         latest_path = run_dir / "outputs" / f"{task.task_id}.latest.json"
         latest_path.write_text(output_path.read_text(encoding="utf-8"), encoding="utf-8")
 
-        state.completed_steps.append(role.value)
-        state.outputs[role.value] = str(latest_path.relative_to(run_dir))
+        if step_key not in state.completed_steps:
+            state.completed_steps.append(step_key)
+        relative_latest_path = str(latest_path.relative_to(run_dir))
+        state.outputs[step_key] = relative_latest_path
+        state.outputs[role.value] = relative_latest_path
         completed_roles.append(role)
         if role is Role.PORTFOLIO_MANAGER:
             final_decision = validated  # type: ignore[assignment]
@@ -224,6 +311,7 @@ def run_shallow_analysis(
     manifest.setdefault("artifacts", {})["final_report"] = "reports/final_report.md"
     manifest["completed_roles"] = [role.value for role in completed_roles]
     manifest["analyst_roles"] = [role.value for role in analyst_roles]
+    manifest["debate_rounds"] = debate_round_count
     manifest_path.write_text(json.dumps(manifest, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
 
     state.completed_steps.append("render_final_report")
@@ -242,27 +330,32 @@ def resume_shallow_analysis(
     depth: Literal["shallow"] | str = "shallow",
     timeout_seconds: int = 60,
     analysts: AnalystSelection = None,
+    debate_rounds: int | None = None,
 ) -> PipelineResult:
     if depth != "shallow":
         raise ValueError("only shallow depth is implemented")
 
     selected_run_dir = Path(run_dir)
     analyst_roles = _analyst_roles_for_resume(selected_run_dir, analysts)
-    role_sequence = _role_sequence_for_analysts(analyst_roles)
+    debate_round_count = _debate_rounds_for_resume(selected_run_dir, debate_rounds)
+    steps = _steps_for_analysis(analyst_roles, debate_rounds=debate_round_count)
     state = read_checkpoint(selected_run_dir)
     completed_roles: list[Role] = []
     final_decision: PortfolioDecisionOutput | None = None
 
-    for role in role_sequence:
-        task = _task_for_role(
-            role=role,
+    for step in steps:
+        role = step.role
+        task = _task_for_step(
+            step=step,
             ticker=state.ticker,
             trade_date=state.trade_date,
             language=language,
             analyst_roles=analyst_roles,
+            debate_rounds=debate_round_count,
         )
+        step_key = _checkpoint_key(task)
         validated = _validated_latest_output(selected_run_dir, state, task)
-        if role.value in state.completed_steps and validated is not None:
+        if step_key in state.completed_steps and validated is not None:
             completed_roles.append(role)
             if role is Role.PORTFOLIO_MANAGER:
                 final_decision = validated  # type: ignore[assignment]
@@ -276,7 +369,7 @@ def resume_shallow_analysis(
         task_path.write_text(task_text, encoding="utf-8")
 
         state.status = "running"
-        state.current_step = role.value
+        state.current_step = step_key
         write_checkpoint(selected_run_dir, state)
         try:
             validated, output_path = _run_role_with_repair(
@@ -289,15 +382,17 @@ def resume_shallow_analysis(
             )
         except Exception:
             state.status = "failed_validation"
-            state.current_step = role.value
+            state.current_step = step_key
             write_checkpoint(selected_run_dir, state)
             raise
 
         latest_path = selected_run_dir / "outputs" / f"{task.task_id}.latest.json"
         latest_path.write_text(output_path.read_text(encoding="utf-8"), encoding="utf-8")
-        if role.value not in state.completed_steps:
-            state.completed_steps.append(role.value)
-        state.outputs[role.value] = str(latest_path.relative_to(selected_run_dir))
+        if step_key not in state.completed_steps:
+            state.completed_steps.append(step_key)
+        relative_latest_path = str(latest_path.relative_to(selected_run_dir))
+        state.outputs[step_key] = relative_latest_path
+        state.outputs[role.value] = relative_latest_path
         completed_roles.append(role)
         if role is Role.PORTFOLIO_MANAGER:
             final_decision = validated  # type: ignore[assignment]
@@ -315,6 +410,7 @@ def resume_shallow_analysis(
     manifest.setdefault("artifacts", {})["final_report"] = "reports/final_report.md"
     manifest["completed_roles"] = [role.value for role in completed_roles]
     manifest["analyst_roles"] = [role.value for role in analyst_roles]
+    manifest["debate_rounds"] = debate_round_count
     manifest_path.write_text(json.dumps(manifest, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
 
     if "render_final_report" not in state.completed_steps:
@@ -327,7 +423,7 @@ def resume_shallow_analysis(
 
 
 def _validated_latest_output(run_dir: Path, state: CheckpointState, task: AgentTask):
-    relative_path = state.outputs.get(task.role.value, f"outputs/{task.task_id}.latest.json")
+    relative_path = state.outputs.get(_checkpoint_key(task), f"outputs/{task.task_id}.latest.json")
     output_path = run_dir / relative_path
     if not output_path.exists():
         return None

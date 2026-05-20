@@ -16,13 +16,13 @@ Implemented:
 - Deterministic `MockRunner` for local tests without network, Hermes, Codex, or API keys.
 - Hermes CLI runner with provider/model/executable options.
 - Codex CLI runner with executable/model/reasoning-effort options and per-run logs under `logs/codex/`.
-- Shallow full pipeline with configurable analyst selection (`--analysts market,news` by default; `--analysts all` adds sentiment and fundamentals):
+- Shallow full pipeline with configurable analyst selection (`--analysts market,news` by default; `--analysts all` adds sentiment and fundamentals) and configurable bull/bear debate rounds (`--debate-rounds 1` by default):
   - market analyst
   - sentiment analyst (when selected)
   - news analyst
   - fundamentals analyst (when selected)
-  - bull researcher
-  - bear researcher
+  - bull researcher (repeatable)
+  - bear researcher (repeatable)
   - research manager
   - trader
   - aggressive risk analyst
@@ -68,6 +68,8 @@ stock-agents analyze SPY \
   --date 2026-01-15 \
   --runner mock \
   --language Korean \
+  --analysts market,news \
+  --debate-rounds 1 \
   --depth shallow
 ```
 
@@ -99,6 +101,8 @@ stock-agents analyze SPY \
   --model gpt-5.5 \
   --timeout-seconds 240 \
   --language Korean \
+  --analysts market,news \
+  --debate-rounds 1 \
   --depth shallow
 ```
 
@@ -122,6 +126,8 @@ stock-agents analyze SPY \
   --reasoning-effort medium \
   --timeout-seconds 240 \
   --language Korean \
+  --analysts market,news \
+  --debate-rounds 1 \
   --depth shallow
 ```
 
@@ -180,6 +186,8 @@ stock-agents resume runs/SPY/2026-01-15/<run_id> \
   --runner mock \
   --language Korean
 ```
+
+`resume` reuses `analyst_roles` and `debate_rounds` recorded in `manifest.json` unless `--analysts` or `--debate-rounds` is provided explicitly.
 
 ## Tests
 
