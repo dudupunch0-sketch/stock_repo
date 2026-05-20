@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 import typer
@@ -10,6 +11,7 @@ from stock_agents.doctor import run_doctor
 from stock_agents.domain.enums import Role
 from stock_agents.orchestration.pipeline import run_mock_analysis, run_shallow_analysis
 from stock_agents.orchestration.task_builder import build_agent_task, render_task
+from stock_agents.orchestration.validator import extract_json_object, validate_output_for_role
 from stock_agents.runners.hermes import HermesRunner
 from stock_agents.runners.mock import MockRunner
 
@@ -93,9 +95,56 @@ def _runner_cwd_for_task(task_file: Path) -> Path:
 
 
 @app.command()
-def validate() -> None:
-    """Validate raw runner JSON output. Placeholder for the next milestone."""
-    typer.echo("validate command placeholder: schema validator is available as a Python API.")
+def validate(
+    raw_output: Path = typer.Argument(..., help="Raw runner output text file to validate."),
+    role: Role = typer.Option(..., "--role", help="Expected role schema for the output."),
+    output: Path | None = typer.Option(None, "--output", help="Optional path for canonical validated JSON."),
+) -> None:
+    """Validate raw runner output and emit canonical JSON."""
+    try:
+        raw_text = raw_output.read_text(encoding="utf-8")
+        payload = extract_json_object(raw_text)
+        validated = validate_output_for_role(role, payload)
+    except FileNotFoundError as exc:
+        raise typer.BadParameter(f"raw output file not found: {raw_output}") from exc
+    except Exception as exc:
+        typer.echo(f"validation failed: {exc}", err=True)
+        raise typer.Exit(1) from exc
+
+    canonical_json = validated.model_dump_json(indent=2) + "\n"
+    if output is not None:
+        output.parent.mkdir(parents=True, exist_ok=True)
+        output.write_text(canonical_json, encoding="utf-8")
+        typer.echo(str(output))
+        return
+    typer.echo(canonical_json, nl=False)
+
+
+@app.command("show-run")
+def show_run(
+    run_dir: Path = typer.Argument(..., help="Run artifact directory to inspect."),
+) -> None:
+    """Summarize a run checkpoint and its current output artifacts."""
+    state_path = run_dir / "checkpoints" / "state.json"
+    try:
+        state = json.loads(state_path.read_text(encoding="utf-8"))
+    except FileNotFoundError as exc:
+        raise typer.BadParameter(f"checkpoint not found: {state_path}") from exc
+
+    typer.echo(f"Run: {state['run_id']}")
+    typer.echo(f"Ticker: {state['ticker']}")
+    typer.echo(f"Trade date: {state['trade_date']}")
+    typer.echo(f"Status: {state['status']}")
+    typer.echo(f"Current step: {state.get('current_step')}")
+    typer.echo("Completed steps:")
+    for step in state.get("completed_steps", []):
+        typer.echo(f"- {step}")
+    typer.echo("Outputs:")
+    for name, relative_path in state.get("outputs", {}).items():
+        typer.echo(f"- {name}: {relative_path}")
+    final_report = state.get("outputs", {}).get("final_report")
+    if final_report:
+        typer.echo(f"Final report: {run_dir / final_report}")
 
 
 @app.command()

@@ -59,3 +59,11 @@ def test_extract_json_object_handles_fenced_json_and_validate_for_role():
 
     assert output.role == Role.MARKET_ANALYST
     assert output.ticker == "SPY"
+
+
+def test_extract_json_object_prefers_first_balanced_object_before_later_fence():
+    raw = 'prefix {"selected": "first"} later ```json\n{"selected": "fenced"}\n```'
+
+    payload = extract_json_object(raw)
+
+    assert payload == {"selected": "first"}

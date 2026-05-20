@@ -31,10 +31,10 @@ def extract_json_object(raw_text: str) -> dict[str, Any]:
     candidates: list[str] = []
     if stripped.startswith("{"):
         candidates.append(stripped)
-    candidates.extend(match.group(1).strip() for match in _FENCED_JSON_RE.finditer(raw_text))
     balanced = _first_balanced_json_object(raw_text)
     if balanced is not None:
         candidates.append(balanced)
+    candidates.extend(match.group(1).strip() for match in _FENCED_JSON_RE.finditer(raw_text))
 
     last_error: Exception | None = None
     for candidate in candidates:
