@@ -31,6 +31,11 @@ def new_checkpoint_state(*, run_id: str, ticker: str, trade_date: str) -> Checkp
     )
 
 
+def read_checkpoint(run_dir: Path) -> CheckpointState:
+    path = run_dir / "checkpoints" / "state.json"
+    return CheckpointState.model_validate_json(path.read_text(encoding="utf-8"))
+
+
 def write_checkpoint(run_dir: Path, state: CheckpointState) -> Path:
     state.updated_at = datetime.now(timezone.utc).isoformat()
     path = run_dir / "checkpoints" / "state.json"

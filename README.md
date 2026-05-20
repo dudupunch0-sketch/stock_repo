@@ -27,14 +27,14 @@ Implemented:
   - neutral risk analyst
   - portfolio manager
 - JSON extraction, schema validation, canonical output files, and bounded repair.
-- `validate` and `show-run` artifact inspection commands.
+- `validate`, `show-run`, and `resume` artifact commands.
 - Final report rendering with a financial-advice disclaimer.
 
 Known limitations:
 
 - Only `--depth shallow` is implemented.
 - `CodexRunner` is not implemented yet.
-- `resume` is not implemented yet.
+- Resume continues from checkpointed role outputs, but does not yet rebuild missing/corrupt fact inputs.
 - Market OHLCV uses `yfinance` when available, then falls back to deterministic offline fixture bars.
 - News, fundamentals, and sentiment providers are placeholders in the local collector.
 
@@ -144,6 +144,14 @@ Summarize a run:
 
 ```bash
 stock-agents show-run runs/SPY/2026-01-15/<run_id>
+```
+
+Resume an interrupted shallow run from its checkpoint:
+
+```bash
+stock-agents resume runs/SPY/2026-01-15/<run_id> \
+  --runner mock \
+  --language Korean
 ```
 
 ## Tests

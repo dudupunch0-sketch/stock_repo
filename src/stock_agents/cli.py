@@ -9,7 +9,7 @@ from stock_agents import __version__
 from stock_agents.data.collector import collect_all_facts
 from stock_agents.doctor import run_doctor
 from stock_agents.domain.enums import Role
-from stock_agents.orchestration.pipeline import run_mock_analysis, run_shallow_analysis
+from stock_agents.orchestration.pipeline import resume_shallow_analysis, run_mock_analysis, run_shallow_analysis
 from stock_agents.orchestration.task_builder import build_agent_task, render_task
 from stock_agents.orchestration.validator import extract_json_object, validate_output_for_role
 from stock_agents.runners.hermes import HermesRunner
@@ -200,6 +200,38 @@ def analyze(
             )
         else:
             raise typer.BadParameter("runner must be one of: mock, hermes")
+    except ValueError as exc:
+        raise typer.BadParameter(str(exc)) from exc
+    typer.echo(str(result.run_dir))
+    typer.echo(str(result.final_report_path))
+
+
+@app.command()
+def resume(
+    run_dir: Path = typer.Argument(..., help="Existing run artifact directory to resume."),
+    runner: str = typer.Option("mock", "--runner", help="Runner name: mock or hermes."),
+    provider: str | None = typer.Option(None, "--provider", help="Optional Hermes provider override."),
+    model: str | None = typer.Option(None, "--model", help="Optional Hermes model override."),
+    hermes_executable: str = typer.Option("hermes", "--hermes-executable", help="Hermes executable for --runner hermes."),
+    timeout_seconds: int = typer.Option(60, "--timeout-seconds", min=1, help="Per-role runner timeout in seconds."),
+    language: str = typer.Option("Korean", "--language", help="Output language for human-readable fields."),
+    depth: str = typer.Option("shallow", "--depth", help="Pipeline depth. Only shallow is implemented."),
+) -> None:
+    """Resume an existing shallow analysis run from its checkpoint."""
+    try:
+        if runner == "mock":
+            selected_runner = MockRunner()
+        elif runner == "hermes":
+            selected_runner = HermesRunner(executable=hermes_executable, provider=provider, model=model)
+        else:
+            raise typer.BadParameter("runner must be one of: mock, hermes")
+        result = resume_shallow_analysis(
+            run_dir=run_dir,
+            runner=selected_runner,
+            language=language,
+            depth=depth,
+            timeout_seconds=timeout_seconds,
+        )
     except ValueError as exc:
         raise typer.BadParameter(str(exc)) from exc
     typer.echo(str(result.run_dir))
