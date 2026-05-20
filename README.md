@@ -16,7 +16,7 @@ Implemented:
 - Deterministic `MockRunner` for local tests without network, Hermes, Codex, or API keys.
 - Hermes CLI runner with provider/model/executable options.
 - Codex CLI runner with executable/model/reasoning-effort options and per-run logs under `logs/codex/`.
-- Shallow full pipeline with configurable analyst selection (`--analysts market,news` by default; `--analysts all` adds sentiment and fundamentals) and configurable bull/bear debate rounds (`--debate-rounds 1` by default):
+- Shallow full pipeline with configurable analyst selection (`--analysts market,news` by default; `--analysts all` adds sentiment and fundamentals), configurable bull/bear debate rounds (`--debate-rounds 1` by default), and configurable risk-team debate rounds (`--risk-rounds 1` by default):
   - market analyst
   - sentiment analyst (when selected)
   - news analyst
@@ -25,9 +25,9 @@ Implemented:
   - bear researcher (repeatable)
   - research manager
   - trader
-  - aggressive risk analyst
-  - conservative risk analyst
-  - neutral risk analyst
+  - aggressive risk analyst (repeatable)
+  - conservative risk analyst (repeatable)
+  - neutral risk analyst (repeatable)
   - portfolio manager
 - JSON extraction, schema validation, canonical output files, and bounded repair.
 - `validate`, `show-run`, and `resume` artifact commands.
@@ -70,6 +70,7 @@ stock-agents analyze SPY \
   --language Korean \
   --analysts market,news \
   --debate-rounds 1 \
+  --risk-rounds 1 \
   --depth shallow
 ```
 
@@ -103,6 +104,7 @@ stock-agents analyze SPY \
   --language Korean \
   --analysts market,news \
   --debate-rounds 1 \
+  --risk-rounds 1 \
   --depth shallow
 ```
 
@@ -128,6 +130,7 @@ stock-agents analyze SPY \
   --language Korean \
   --analysts market,news \
   --debate-rounds 1 \
+  --risk-rounds 1 \
   --depth shallow
 ```
 
@@ -187,7 +190,7 @@ stock-agents resume runs/SPY/2026-01-15/<run_id> \
   --language Korean
 ```
 
-`resume` reuses `analyst_roles` and `debate_rounds` recorded in `manifest.json` unless `--analysts` or `--debate-rounds` is provided explicitly.
+`resume` reuses `analyst_roles`, `debate_rounds`, and `risk_rounds` recorded in `manifest.json` unless `--analysts`, `--debate-rounds`, or `--risk-rounds` is provided explicitly.
 
 ## Tests
 

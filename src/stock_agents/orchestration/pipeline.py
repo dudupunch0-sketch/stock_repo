@@ -28,12 +28,16 @@ _ALL_ANALYST_ROLES = (
     Role.NEWS_ANALYST,
     Role.FUNDAMENTALS_ANALYST,
 )
-_POST_DEBATE_ROLE_SEQUENCE = (
+_RESEARCH_AND_TRADER_ROLE_SEQUENCE = (
     Role.RESEARCH_MANAGER,
     Role.TRADER,
+)
+_RISK_ROLE_SEQUENCE = (
     Role.RISK_AGGRESSIVE,
     Role.RISK_CONSERVATIVE,
     Role.RISK_NEUTRAL,
+)
+_POST_RISK_ROLE_SEQUENCE = (
     Role.PORTFOLIO_MANAGER,
 )
 _ANALYST_ALIASES = {
@@ -95,8 +99,20 @@ def resolve_debate_rounds(debate_rounds: int) -> int:
     return debate_rounds
 
 
-def _steps_for_analysis(analyst_roles: tuple[Role, ...], *, debate_rounds: int) -> tuple[PipelineStep, ...]:
+def resolve_risk_rounds(risk_rounds: int) -> int:
+    if risk_rounds < 1:
+        raise ValueError("risk_rounds must be at least 1")
+    return risk_rounds
+
+
+def _steps_for_analysis(
+    analyst_roles: tuple[Role, ...],
+    *,
+    debate_rounds: int,
+    risk_rounds: int,
+) -> tuple[PipelineStep, ...]:
     rounds = resolve_debate_rounds(debate_rounds)
+    risk_round_count = resolve_risk_rounds(risk_rounds)
     steps = [PipelineStep(role=role) for role in analyst_roles]
     if rounds == 1:
         steps.extend((PipelineStep(role=Role.BULL_RESEARCHER), PipelineStep(role=Role.BEAR_RESEARCHER)))
@@ -108,7 +124,13 @@ def _steps_for_analysis(analyst_roles: tuple[Role, ...], *, debate_rounds: int) 
                     PipelineStep(role=Role.BEAR_RESEARCHER, round_number=round_number),
                 )
             )
-    steps.extend(PipelineStep(role=role) for role in _POST_DEBATE_ROLE_SEQUENCE)
+    steps.extend(PipelineStep(role=role) for role in _RESEARCH_AND_TRADER_ROLE_SEQUENCE)
+    if risk_round_count == 1:
+        steps.extend(PipelineStep(role=role) for role in _RISK_ROLE_SEQUENCE)
+    else:
+        for round_number in range(1, risk_round_count + 1):
+            steps.extend(PipelineStep(role=role, round_number=round_number) for role in _RISK_ROLE_SEQUENCE)
+    steps.extend(PipelineStep(role=role) for role in _POST_RISK_ROLE_SEQUENCE)
     return tuple(steps)
 
 
@@ -120,6 +142,7 @@ def _task_for_step(
     language: str,
     analyst_roles: tuple[Role, ...],
     debate_rounds: int,
+    risk_rounds: int,
 ) -> AgentTask:
     role = step.role
     task = build_agent_task(role=role, ticker=ticker, trade_date=trade_date, language=language)
@@ -156,14 +179,53 @@ def _task_for_step(
                 ]
             }
         )
+    if role in _RISK_ROLE_SEQUENCE:
+        dependency_output_paths = list(task.dependency_output_paths)
+        updates: dict[str, object] = {"dependency_output_paths": dependency_output_paths}
+        if step.round_number is not None:
+            task_id = f"{task.task_id}_round{step.round_number}"
+            if step.round_number > 1:
+                previous_round = step.round_number - 1
+                dependency_output_paths.extend(
+                    f"outputs/{ROLE_TASK_SPECS[risk_role].task_id}_round{previous_round}.latest.json"
+                    for risk_role in _RISK_ROLE_SEQUENCE
+                )
+            updates.update(
+                {
+                    "task_id": task_id,
+                    "output_path": f"outputs/{task_id}.attempt0.json",
+                    "objective": f"Risk debate round {step.round_number} of {risk_rounds}. {task.objective}",
+                }
+            )
+        return task.model_copy(update=updates)
+    if role is Role.PORTFOLIO_MANAGER and risk_rounds > 1:
+        return task.model_copy(
+            update={
+                "dependency_output_paths": [
+                    "outputs/05_research_manager.latest.json",
+                    "outputs/06_trader.latest.json",
+                    *(
+                        f"outputs/{ROLE_TASK_SPECS[risk_role].task_id}_round{risk_rounds}.latest.json"
+                        for risk_role in _RISK_ROLE_SEQUENCE
+                    ),
+                ]
+            }
+        )
     return task
 
 
-def _record_run_options_in_manifest(run_dir: Path, *, analyst_roles: tuple[Role, ...], debate_rounds: int) -> None:
+def _record_run_options_in_manifest(
+    run_dir: Path,
+    *,
+    analyst_roles: tuple[Role, ...],
+    debate_rounds: int,
+    risk_rounds: int,
+) -> None:
     manifest_path = run_dir / "manifest.json"
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
     manifest["analyst_roles"] = [role.value for role in analyst_roles]
     manifest["debate_rounds"] = debate_rounds
+    manifest["risk_rounds"] = risk_rounds
     manifest_path.write_text(json.dumps(manifest, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
 
 
@@ -192,6 +254,17 @@ def _debate_rounds_for_resume(run_dir: Path, debate_rounds: int | None) -> int:
     return resolve_debate_rounds(int(manifest.get("debate_rounds", 1)))
 
 
+def _risk_rounds_for_resume(run_dir: Path, risk_rounds: int | None) -> int:
+    if risk_rounds is not None:
+        return resolve_risk_rounds(risk_rounds)
+    manifest_path = run_dir / "manifest.json"
+    try:
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    except FileNotFoundError:
+        return 1
+    return resolve_risk_rounds(int(manifest.get("risk_rounds", 1)))
+
+
 def _checkpoint_key(task: AgentTask) -> str:
     if task.task_id == ROLE_TASK_SPECS[task.role].task_id:
         return task.role.value
@@ -208,6 +281,7 @@ def run_mock_analysis(
     depth: Literal["shallow"] | str = "shallow",
     analysts: AnalystSelection = None,
     debate_rounds: int = 1,
+    risk_rounds: int = 1,
 ) -> PipelineResult:
     return run_shallow_analysis(
         ticker=ticker,
@@ -220,6 +294,7 @@ def run_mock_analysis(
         timeout_seconds=60,
         analysts=analysts,
         debate_rounds=debate_rounds,
+        risk_rounds=risk_rounds,
     )
 
 
@@ -235,16 +310,27 @@ def run_shallow_analysis(
     timeout_seconds: int = 60,
     analysts: AnalystSelection = None,
     debate_rounds: int = 1,
+    risk_rounds: int = 1,
 ) -> PipelineResult:
     if depth != "shallow":
         raise ValueError("only shallow depth is implemented")
     analyst_roles = resolve_analyst_roles(analysts)
     debate_round_count = resolve_debate_rounds(debate_rounds)
-    steps = _steps_for_analysis(analyst_roles, debate_rounds=debate_round_count)
+    risk_round_count = resolve_risk_rounds(risk_rounds)
+    steps = _steps_for_analysis(
+        analyst_roles,
+        debate_rounds=debate_round_count,
+        risk_rounds=risk_round_count,
+    )
 
     collected = collect_all_facts(ticker=ticker, trade_date=trade_date, output_dir=output_dir, run_id=run_id)
     run_dir = collected.run_dir
-    _record_run_options_in_manifest(run_dir, analyst_roles=analyst_roles, debate_rounds=debate_round_count)
+    _record_run_options_in_manifest(
+        run_dir,
+        analyst_roles=analyst_roles,
+        debate_rounds=debate_round_count,
+        risk_rounds=risk_round_count,
+    )
     selected_run_id = run_dir.name
     state = new_checkpoint_state(run_id=selected_run_id, ticker=ticker, trade_date=trade_date)
     state.completed_steps.append("collect_facts")
@@ -263,6 +349,7 @@ def run_shallow_analysis(
             language=language,
             analyst_roles=analyst_roles,
             debate_rounds=debate_round_count,
+            risk_rounds=risk_round_count,
         )
         step_key = _checkpoint_key(task)
         task_path = run_dir / "tasks" / f"{task.task_id}.task.md"
@@ -312,6 +399,7 @@ def run_shallow_analysis(
     manifest["completed_roles"] = [role.value for role in completed_roles]
     manifest["analyst_roles"] = [role.value for role in analyst_roles]
     manifest["debate_rounds"] = debate_round_count
+    manifest["risk_rounds"] = risk_round_count
     manifest_path.write_text(json.dumps(manifest, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
 
     state.completed_steps.append("render_final_report")
@@ -331,6 +419,7 @@ def resume_shallow_analysis(
     timeout_seconds: int = 60,
     analysts: AnalystSelection = None,
     debate_rounds: int | None = None,
+    risk_rounds: int | None = None,
 ) -> PipelineResult:
     if depth != "shallow":
         raise ValueError("only shallow depth is implemented")
@@ -338,7 +427,12 @@ def resume_shallow_analysis(
     selected_run_dir = Path(run_dir)
     analyst_roles = _analyst_roles_for_resume(selected_run_dir, analysts)
     debate_round_count = _debate_rounds_for_resume(selected_run_dir, debate_rounds)
-    steps = _steps_for_analysis(analyst_roles, debate_rounds=debate_round_count)
+    risk_round_count = _risk_rounds_for_resume(selected_run_dir, risk_rounds)
+    steps = _steps_for_analysis(
+        analyst_roles,
+        debate_rounds=debate_round_count,
+        risk_rounds=risk_round_count,
+    )
     state = read_checkpoint(selected_run_dir)
     completed_roles: list[Role] = []
     final_decision: PortfolioDecisionOutput | None = None
@@ -352,6 +446,7 @@ def resume_shallow_analysis(
             language=language,
             analyst_roles=analyst_roles,
             debate_rounds=debate_round_count,
+            risk_rounds=risk_round_count,
         )
         step_key = _checkpoint_key(task)
         validated = _validated_latest_output(selected_run_dir, state, task)
@@ -411,6 +506,7 @@ def resume_shallow_analysis(
     manifest["completed_roles"] = [role.value for role in completed_roles]
     manifest["analyst_roles"] = [role.value for role in analyst_roles]
     manifest["debate_rounds"] = debate_round_count
+    manifest["risk_rounds"] = risk_round_count
     manifest_path.write_text(json.dumps(manifest, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
 
     if "render_final_report" not in state.completed_steps:
