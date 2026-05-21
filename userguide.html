@@ -1,0 +1,255 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>stock-agents user guide</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: oklch(11% 0.012 230);
+      --rail: oklch(14% 0.014 230);
+      --panel: oklch(19% 0.018 230 / 0.94);
+      --panel-2: oklch(23% 0.024 230 / 0.96);
+      --line: oklch(43% 0.034 230 / 0.42);
+      --text: oklch(93% 0.01 220);
+      --muted: oklch(70% 0.022 230);
+      --quiet: oklch(55% 0.026 230);
+      --accent: oklch(76% 0.15 164);
+      --amber: oklch(76% 0.11 76);
+      --danger: oklch(70% 0.16 24);
+      --radius-sm: 8px;
+      --radius-md: 14px;
+      --radius-lg: 24px;
+      --mono: "JetBrains Mono", "Cascadia Code", "SFMono-Regular", Consolas, monospace;
+      --sans: "Aptos Display", "Avenir Next", "Segoe UI", system-ui, sans-serif;
+    }
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      color: var(--text);
+      font-family: var(--sans);
+      background:
+        linear-gradient(90deg, oklch(7% 0.012 230), transparent 34%),
+        radial-gradient(circle at 76% 6%, oklch(36% 0.08 164 / 0.18), transparent 32rem),
+        var(--bg);
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+    }
+    a { color: inherit; }
+    .skip { position: absolute; left: 12px; top: -80px; padding: 10px 14px; border-radius: var(--radius-sm); background: var(--accent); color: #06110d; transition-property: top; transition-duration: 160ms; z-index: 10; }
+    .skip:focus { top: 12px; }
+    .layout { display: grid; grid-template-columns: minmax(250px, 310px) minmax(0, 1fr); min-height: 100vh; }
+    aside { position: sticky; top: 0; height: 100vh; padding: 24px 18px; background: oklch(9% 0.012 230 / 0.86); border-right: 1px solid var(--line); }
+    .logo { display: flex; gap: 12px; align-items: center; margin-bottom: 22px; }
+    .logo-badge { width: 42px; height: 42px; display: grid; place-items: center; border-radius: 12px; background: oklch(22% 0.04 164); color: var(--accent); font-family: var(--mono); box-shadow: inset 0 0 0 1px oklch(76% 0.15 164 / 0.52); }
+    h1, h2, h3 { margin: 0; letter-spacing: -0.028em; text-wrap: balance; }
+    .logo h1 { font-size: 20px; line-height: 1.05; }
+    .logo span { display: block; color: var(--muted); font-size: 12px; margin-top: 4px; }
+    .filter { width: 100%; min-height: 42px; padding: 0 14px; border-radius: 999px; border: 1px solid var(--line); background: oklch(15% 0.014 230); color: var(--text); font: 12px var(--mono); outline: none; transition-property: border-color, box-shadow; transition-duration: 160ms; }
+    .filter:focus-visible { border-color: var(--accent); box-shadow: 0 0 0 4px oklch(76% 0.15 164 / 0.14); }
+    nav { display: grid; gap: 8px; margin-top: 18px; }
+    nav a, .doc-link { min-height: 40px; display: flex; align-items: center; padding: 0 12px; border-radius: 999px; color: var(--muted); text-decoration: none; font-size: 13px; transition-property: background-color, color, transform; transition-duration: 160ms; }
+    nav a:hover, .doc-link:hover { background: oklch(22% 0.022 230); color: var(--text); }
+    nav a:active, .doc-link:active, button:active { transform: scale(0.96); }
+    .links { margin-top: 24px; padding-top: 16px; border-top: 1px solid var(--line); display: grid; gap: 8px; }
+    main { padding: 34px clamp(18px, 4vw, 58px) 70px; }
+    .hero { border: 1px solid var(--line); border-radius: var(--radius-lg); background: linear-gradient(135deg, var(--panel), oklch(16% 0.02 230 / 0.92)); padding: clamp(22px, 5vw, 44px); box-shadow: 0 24px 80px oklch(4% 0.02 230 / 0.5); }
+    .eyebrow { color: var(--accent); font-family: var(--mono); font-size: 12px; letter-spacing: 0.08em; text-transform: uppercase; }
+    .hero h2 { margin-top: 14px; max-width: 880px; font-size: clamp(36px, 6vw, 68px); line-height: 0.96; letter-spacing: -0.045em; }
+    .hero p { max-width: 74ch; color: var(--muted); line-height: 1.7; text-wrap: pretty; }
+    .quick { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; margin-top: 22px; }
+    .quick div { border: 1px solid var(--line); border-radius: var(--radius-md); padding: 14px; background: var(--panel-2); }
+    .quick b { display: block; font-family: var(--mono); color: var(--amber); margin-bottom: 8px; }
+    .quick span { color: var(--muted); font-size: 13px; line-height: 1.45; }
+    section { margin-top: 30px; }
+    .head { display: flex; justify-content: space-between; gap: 16px; align-items: end; margin-bottom: 14px; }
+    .head h2 { font-size: clamp(25px, 4vw, 38px); }
+    .head p { margin: 0; color: var(--muted); max-width: 65ch; line-height: 1.6; }
+    .step-grid { display: grid; gap: 14px; }
+    .step { border: 1px solid var(--line); border-radius: var(--radius-lg); background: var(--panel); padding: 20px; }
+    .step-header { display: flex; justify-content: space-between; gap: 12px; align-items: start; margin-bottom: 12px; }
+    .step h3 { font-size: 20px; }
+    .step p, .step li { color: var(--muted); line-height: 1.62; font-size: 14px; }
+    .pill { display: inline-flex; align-items: center; min-height: 26px; padding: 0 10px; border-radius: 999px; background: oklch(76% 0.15 164 / 0.12); color: var(--accent); font: 11px var(--mono); white-space: nowrap; }
+    pre { position: relative; margin: 14px 0 0; border-radius: var(--radius-md); border: 1px solid oklch(38% 0.05 164 / 0.32); background: oklch(7% 0.018 230 / 0.78); color: oklch(86% 0.08 164); padding: 16px; overflow-x: auto; font: 13px/1.6 var(--mono); }
+    code { font-family: var(--mono); color: oklch(85% 0.09 164); }
+    .copy { min-height: 34px; border: 1px solid var(--line); border-radius: 999px; background: oklch(19% 0.018 230); color: var(--text); padding: 0 12px; cursor: pointer; font: 11px var(--mono); transition-property: transform, border-color, background-color; transition-duration: 160ms; }
+    .copy:hover { border-color: var(--accent); background: oklch(24% 0.024 230); }
+    table { width: 100%; border-collapse: collapse; border: 1px solid var(--line); border-radius: var(--radius-md); overflow: hidden; }
+    th, td { padding: 13px 14px; border-bottom: 1px solid oklch(42% 0.03 230 / 0.24); text-align: left; vertical-align: top; font-size: 13px; }
+    th { background: oklch(13% 0.014 230); color: var(--accent); font-family: var(--mono); }
+    td { color: var(--muted); line-height: 1.55; }
+    tr:last-child td { border-bottom: 0; }
+    .cards { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; }
+    .card { padding: 18px; border: 1px solid var(--line); border-radius: var(--radius-md); background: var(--panel); }
+    .card h3 { font-size: 17px; margin-bottom: 10px; }
+    .card p { margin: 0; color: var(--muted); line-height: 1.6; font-size: 13px; }
+    .hidden { display: none !important; }
+    .footer { margin-top: 34px; color: var(--quiet); font-size: 12px; line-height: 1.6; }
+    @media (max-width: 1000px) { .layout { grid-template-columns: 1fr; } aside { position: relative; height: auto; } .quick, .cards { grid-template-columns: 1fr; } }
+    @media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } * { transition-duration: 0.001ms !important; } }
+  </style>
+</head>
+<body>
+  <a class="skip" href="#main-content">본문으로 건너뛰기</a>
+  <div class="layout">
+    <aside aria-label="사용 가이드 내비게이션">
+      <div class="logo"><div class="logo-badge">sg</div><div><h1>User guide</h1><span>stock-agents operational manual</span></div></div>
+      <input id="filter" class="filter" type="search" placeholder="명령, resume, codex..." aria-label="가이드 검색">
+      <nav>
+        <a href="#install">설치</a>
+        <a href="#smoke">환경 확인</a>
+        <a href="#run">분석 실행</a>
+        <a href="#resume">재개</a>
+        <a href="#inspect">검증과 검사</a>
+        <a href="#artifacts">산출물 읽기</a>
+        <a href="#limits">주의사항</a>
+      </nav>
+      <div class="links">
+        <a class="doc-link" href="overview.html">Overview로 이동</a>
+        <a class="doc-link" href="docs/architecture.md">architecture.md</a>
+        <a class="doc-link" href="README.md">README.md</a>
+      </div>
+    </aside>
+    <main id="main-content">
+      <section class="hero" data-search-item>
+        <div class="eyebrow">operator checklist</div>
+        <h2>먼저 mock으로 계약을 확인하고, Hermes나 Codex는 의도할 때만 쓴다.</h2>
+        <p>이 가이드는 현재 코드에서 실제 지원하는 명령만 다룬다. 모델 호출 경로는 로컬 CLI 인증 상태에 의존하며, 결과는 투자 조언이 아니라 리서치 보조 자료다.</p>
+        <div class="quick">
+          <div><b>install</b><span>editable package로 CLI를 등록한다.</span></div>
+          <div><b>doctor</b><span>runner executable과 smoke 경로를 확인한다.</span></div>
+          <div><b>analyze</b><span>shallow pipeline을 실행한다.</span></div>
+          <div><b>resume</b><span>manifest graph shape를 유지하며 이어간다.</span></div>
+        </div>
+      </section>
+
+      <section id="install" data-search-item>
+        <div class="head"><h2>1. 설치</h2><p>repository root에서 실행한다.</p></div>
+        <article class="step">
+          <div class="step-header"><h3>Editable install</h3><button class="copy" data-copy="python -m pip install -e .">copy</button></div>
+          <pre>python -m pip install -e .</pre>
+        </article>
+      </section>
+
+      <section id="smoke" data-search-item>
+        <div class="head"><h2>2. 환경 확인</h2><p>`doctor`는 executable 확인과 runner별 smoke를 담당한다.</p></div>
+        <div class="step-grid">
+          <article class="step">
+            <div class="step-header"><h3>빠른 확인</h3><span class="pill">no model call</span></div>
+            <pre>stock-agents doctor --smoke-runner none
+stock-agents doctor --smoke-runner mock</pre>
+            <p>Mock smoke는 로컬 fixture output을 검증한다. Hermes smoke는 command shape를 확인하지만 live LLM을 호출하지 않는다.</p>
+          </article>
+          <article class="step">
+            <div class="step-header"><h3>실제 runner 확인</h3><span class="pill">auth dependent</span></div>
+            <pre>stock-agents doctor --smoke-runner hermes
+stock-agents doctor --smoke-runner codex</pre>
+            <p>Codex는 `codex exec`가 실제로 성공해야 usable로 본다. `codex login status`만으로는 충분하지 않다.</p>
+          </article>
+        </div>
+      </section>
+
+      <section id="run" data-search-item>
+        <div class="head"><h2>3. 분석 실행</h2><p>기본 회귀 확인은 mock runner를 사용한다.</p></div>
+        <div class="step-grid">
+          <article class="step">
+            <div class="step-header"><h3>Deterministic mock run</h3><button class="copy" data-copy="stock-agents analyze SPY --date 2026-01-15 --runner mock --language Korean --analysts market,news --debate-rounds 1 --risk-rounds 1 --depth shallow">copy</button></div>
+            <pre>stock-agents analyze SPY   --date 2026-01-15   --runner mock   --language Korean   --analysts market,news   --debate-rounds 1   --risk-rounds 1   --depth shallow</pre>
+            <p>명령은 run directory와 final report path를 출력한다.</p>
+          </article>
+          <article class="step">
+            <div class="step-header"><h3>All analysts plus multi-round debates</h3><span class="pill">bounded 1..3</span></div>
+            <pre>stock-agents analyze SPY   --date 2026-01-15   --runner mock   --analysts all   --debate-rounds 2   --risk-rounds 2</pre>
+            <p>`all`은 market, sentiment, news, fundamentals를 선택한다. Round count가 1보다 크면 반복 role task id에 `_roundN` suffix가 붙는다.</p>
+          </article>
+          <article class="step">
+            <div class="step-header"><h3>Hermes run</h3><span class="pill">live model</span></div>
+            <pre>stock-agents analyze SPY   --date 2026-01-15   --runner hermes   --provider openai-codex   --model gpt-5.5   --timeout-seconds 240   --language Korean   --analysts market,news   --depth shallow</pre>
+            <p>Hermes auth는 로컬 Hermes Agent 설치가 담당한다. Routine regression에는 mock을 우선 사용한다.</p>
+          </article>
+          <article class="step">
+            <div class="step-header"><h3>Codex run</h3><span class="pill">codex exec</span></div>
+            <pre>stock-agents analyze SPY   --date 2026-01-15   --runner codex   --model gpt-5.5   --reasoning-effort medium   --timeout-seconds 240   --language Korean   --depth shallow</pre>
+            <p>Codex logs are stored under `logs/codex/` inside the run directory.</p>
+          </article>
+        </div>
+      </section>
+
+      <section id="resume" data-search-item>
+        <div class="head"><h2>4. 재개</h2><p>Resume은 manifest에 기록된 graph-shaping 옵션을 바꾸지 않는다.</p></div>
+        <article class="step">
+          <div class="step-header"><h3>Resume a run</h3><button class="copy" data-copy="stock-agents resume runs/SPY/2026-01-15/<run_id> --runner mock --language Korean">copy</button></div>
+          <pre>stock-agents resume runs/SPY/2026-01-15/&lt;run_id&gt;   --runner mock   --language Korean</pre>
+          <ul>
+            <li>Omit `--analysts`, `--debate-rounds`, and `--risk-rounds` to reuse manifest values.</li>
+            <li>If you pass one of those options and it differs from `manifest.json`, resume fails before new tasks run.</li>
+            <li>Start a new run when you want to change graph shape.</li>
+          </ul>
+        </article>
+      </section>
+
+      <section id="inspect" data-search-item>
+        <div class="head"><h2>5. 검증과 검사</h2><p>생성된 파일은 CLI로 다시 읽고 검증할 수 있다.</p></div>
+        <div class="cards">
+          <article class="card"><h3>Show run</h3><p><code>stock-agents show-run runs/SPY/2026-01-15/&lt;run_id&gt;</code><br>checkpoint status, current step, output aliases를 출력한다.</p></article>
+          <article class="card"><h3>Validate output</h3><p><code>stock-agents validate ... --role portfolio_manager</code><br>raw stdout에서 JSON을 추출하고 Pydantic schema로 검증한다.</p></article>
+          <article class="card"><h3>Build task</h3><p><code>stock-agents build-tasks SPY --date 2026-01-15 --role market_analyst</code><br>단일 task package를 stdout으로 렌더링한다.</p></article>
+        </div>
+      </section>
+
+      <section id="artifacts" data-search-item>
+        <div class="head"><h2>6. 산출물 읽기</h2><p>문제 재현과 디버깅은 run directory에서 시작한다.</p></div>
+        <table>
+          <thead><tr><th>File or directory</th><th>Use</th></tr></thead>
+          <tbody>
+            <tr><td><code>manifest.json</code></td><td>run id, ticker, trade date, input artifacts, selected analysts, debate/risk rounds, final report path</td></tr>
+            <tr><td><code>checkpoints/state.json</code></td><td>run status, current step, completed steps, output path aliases</td></tr>
+            <tr><td><code>tasks/*.task.md</code></td><td>role prompt package with input paths, dependency paths, schema, evidence rules</td></tr>
+            <tr><td><code>outputs/*.raw.txt</code></td><td>raw runner stdout</td></tr>
+            <tr><td><code>outputs/*.attemptN.json</code></td><td>validated canonical output</td></tr>
+            <tr><td><code>outputs/*.latest.json</code></td><td>latest alias for downstream dependencies</td></tr>
+            <tr><td><code>repairs/*.repair.task.md</code></td><td>repair prompt after validation failure</td></tr>
+            <tr><td><code>reports/final_report.md</code></td><td>final portfolio manager synthesis with disclaimer</td></tr>
+          </tbody>
+        </table>
+      </section>
+
+      <section id="limits" data-search-item>
+        <div class="head"><h2>7. 주의사항</h2><p>현재 지원 범위를 넘는 사용은 문서화된 기능이 아니다.</p></div>
+        <div class="cards">
+          <article class="card"><h3>Only shallow</h3><p>`--depth shallow`만 구현되어 있다. standard/deep 분석은 아직 없다.</p></article>
+          <article class="card"><h3>Fact placeholders</h3><p>Market facts는 optional yfinance와 offline fixture를 사용한다. News, sentiment, fundamentals는 placeholder/local fixture다.</p></article>
+          <article class="card"><h3>Research only</h3><p>최종 report는 투자 조언이 아니다. 모든 데이터와 판단은 독립적으로 검증해야 한다.</p></article>
+        </div>
+      </section>
+      <p class="footer">Visual thesis: dark analyst ops, dense command-first guide, teal status signal. Replace placeholder provider notes only after the corresponding collector or runner behavior changes in code.</p>
+    </main>
+  </div>
+  <script>
+    const filter = document.querySelector('#filter');
+    const searchable = [...document.querySelectorAll('[data-search-item]')];
+    filter.addEventListener('input', () => {
+      const q = filter.value.trim().toLowerCase();
+      for (const item of searchable) {
+        item.classList.toggle('hidden', q && !item.textContent.toLowerCase().includes(q));
+      }
+    });
+    document.querySelectorAll('[data-copy]').forEach((button) => {
+      button.addEventListener('click', async () => {
+        try {
+          await navigator.clipboard.writeText(button.dataset.copy);
+          const old = button.textContent;
+          button.textContent = 'copied';
+          setTimeout(() => { button.textContent = old; }, 900);
+        } catch (error) {
+          button.textContent = 'select code';
+        }
+      });
+    });
+  </script>
+</body>
+</html>

@@ -1,0 +1,396 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>stock-agents overview</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: oklch(12% 0.012 230);
+      --bg-2: oklch(16% 0.018 230);
+      --panel: oklch(20% 0.018 230 / 0.92);
+      --panel-strong: oklch(24% 0.024 230 / 0.96);
+      --line: oklch(42% 0.03 230 / 0.42);
+      --line-hot: oklch(72% 0.13 164 / 0.8);
+      --text: oklch(93% 0.01 220);
+      --muted: oklch(70% 0.02 230);
+      --quiet: oklch(55% 0.026 230);
+      --accent: oklch(76% 0.15 164);
+      --accent-2: oklch(76% 0.11 76);
+      --danger: oklch(70% 0.16 24);
+      --shadow: 0 24px 80px oklch(4% 0.02 230 / 0.56);
+      --radius-sm: 8px;
+      --radius-md: 14px;
+      --radius-lg: 24px;
+      --mono: "JetBrains Mono", "Cascadia Code", "SFMono-Regular", Consolas, monospace;
+      --sans: "Aptos Display", "Avenir Next", "Segoe UI", system-ui, sans-serif;
+    }
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background:
+        radial-gradient(circle at 18% 8%, oklch(32% 0.07 164 / 0.28), transparent 34rem),
+        radial-gradient(circle at 88% 18%, oklch(36% 0.08 76 / 0.18), transparent 30rem),
+        linear-gradient(135deg, var(--bg), oklch(9% 0.014 235));
+      color: var(--text);
+      font-family: var(--sans);
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+    }
+    a { color: inherit; }
+    .skip {
+      position: absolute;
+      left: 12px;
+      top: -80px;
+      padding: 10px 14px;
+      border-radius: var(--radius-sm);
+      background: var(--accent);
+      color: #07110d;
+      z-index: 10;
+      transition-property: top;
+      transition-duration: 160ms;
+    }
+    .skip:focus { top: 12px; }
+    .shell {
+      display: grid;
+      grid-template-columns: 288px minmax(0, 1fr);
+      min-height: 100vh;
+    }
+    .side {
+      position: sticky;
+      top: 0;
+      height: 100vh;
+      padding: 24px 18px;
+      border-right: 1px solid var(--line);
+      background: oklch(10% 0.012 230 / 0.78);
+      backdrop-filter: blur(18px);
+    }
+    .brand {
+      display: grid;
+      gap: 10px;
+      margin-bottom: 24px;
+    }
+    .mark {
+      width: 44px;
+      height: 44px;
+      display: grid;
+      place-items: center;
+      border-radius: 12px;
+      background: linear-gradient(135deg, oklch(24% 0.04 164), oklch(17% 0.03 230));
+      box-shadow: inset 0 0 0 1px var(--line-hot), 0 18px 42px oklch(5% 0.02 230 / 0.4);
+      font-family: var(--mono);
+      color: var(--accent);
+      letter-spacing: -0.04em;
+    }
+    .brand h1 {
+      margin: 0;
+      font-size: 22px;
+      letter-spacing: -0.02em;
+      line-height: 1.04;
+      text-wrap: balance;
+    }
+    .brand p { margin: 0; color: var(--muted); font-size: 13px; line-height: 1.5; }
+    .search {
+      width: 100%;
+      min-height: 42px;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      background: oklch(15% 0.014 230);
+      color: var(--text);
+      padding: 0 14px;
+      font-family: var(--mono);
+      font-size: 12px;
+      outline: none;
+      transition-property: border-color, box-shadow, transform;
+      transition-duration: 160ms;
+    }
+    .search:focus-visible { border-color: var(--accent); box-shadow: 0 0 0 4px oklch(76% 0.15 164 / 0.14); }
+    nav { display: grid; gap: 8px; margin-top: 22px; }
+    nav a, .switch a {
+      min-height: 40px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 0 12px;
+      border-radius: 999px;
+      color: var(--muted);
+      text-decoration: none;
+      font-size: 13px;
+      transition-property: background-color, color, transform;
+      transition-duration: 160ms;
+    }
+    nav a:hover, .switch a:hover { background: oklch(22% 0.022 230); color: var(--text); }
+    nav a:active, .switch a:active { transform: scale(0.96); }
+    .switch { margin-top: 24px; padding-top: 18px; border-top: 1px solid var(--line); }
+    .main { padding: 34px clamp(18px, 4vw, 54px) 64px; }
+    .hero {
+      display: grid;
+      grid-template-columns: minmax(0, 1.15fr) minmax(320px, 0.85fr);
+      gap: 22px;
+      align-items: stretch;
+      margin-bottom: 24px;
+    }
+    .terminal-card, .panel {
+      border: 1px solid var(--line);
+      border-radius: var(--radius-lg);
+      background: var(--panel);
+      box-shadow: var(--shadow);
+    }
+    .terminal-card { padding: clamp(22px, 4vw, 38px); overflow: hidden; position: relative; }
+    .terminal-card:before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(90deg, transparent, oklch(76% 0.15 164 / 0.08), transparent);
+      transform: translateX(-100%);
+      animation: scan 7s cubic-bezier(0.16,1,0.3,1) infinite;
+      pointer-events: none;
+    }
+    @keyframes scan { 0%, 62% { transform: translateX(-100%); opacity: 0; } 72% { opacity: 1; } 100% { transform: translateX(100%); opacity: 0; } }
+    .eyebrow { font-family: var(--mono); color: var(--accent); font-size: 12px; letter-spacing: 0.08em; text-transform: uppercase; }
+    .hero h2 {
+      margin: 14px 0 14px;
+      max-width: 900px;
+      font-size: clamp(38px, 7vw, 76px);
+      line-height: 0.95;
+      letter-spacing: -0.045em;
+      text-wrap: balance;
+    }
+    .hero p { margin: 0; color: var(--muted); max-width: 70ch; line-height: 1.7; text-wrap: pretty; }
+    .cmd {
+      margin-top: 24px;
+      padding: 16px;
+      border-radius: var(--radius-md);
+      background: oklch(8% 0.018 230 / 0.72);
+      border: 1px solid oklch(38% 0.05 164 / 0.32);
+      font-family: var(--mono);
+      color: oklch(86% 0.08 164);
+      overflow-x: auto;
+      font-size: 13px;
+      line-height: 1.6;
+    }
+    .status-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; padding: 18px; }
+    .metric {
+      padding: 16px;
+      border-radius: var(--radius-md);
+      background: var(--panel-strong);
+      border: 1px solid var(--line);
+    }
+    .metric strong { display: block; font-size: 30px; letter-spacing: -0.03em; font-variant-numeric: tabular-nums; }
+    .metric span { color: var(--muted); font-size: 12px; line-height: 1.4; }
+    section { margin-top: 28px; }
+    .section-head { display: flex; justify-content: space-between; gap: 18px; align-items: end; margin-bottom: 14px; }
+    .section-head h3 { margin: 0; font-size: clamp(24px, 4vw, 38px); letter-spacing: -0.03em; }
+    .section-head p { margin: 0; color: var(--muted); max-width: 62ch; line-height: 1.6; }
+    .grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; }
+    .card {
+      padding: 18px;
+      border-radius: var(--radius-md);
+      border: 1px solid var(--line);
+      background: oklch(17% 0.016 230 / 0.86);
+      min-height: 154px;
+      transition-property: transform, border-color, background-color;
+      transition-duration: 160ms;
+    }
+    .card:hover { transform: translateY(-2px); border-color: oklch(67% 0.11 164 / 0.58); background: oklch(20% 0.02 230 / 0.92); }
+    .card h4 { margin: 0 0 10px; font-size: 16px; letter-spacing: -0.012em; }
+    .card p, .card li { color: var(--muted); line-height: 1.55; font-size: 13px; }
+    .card p { margin: 0; }
+    .card ul { margin: 0; padding-left: 18px; }
+    .tag { display: inline-flex; align-items: center; min-height: 24px; padding: 0 9px; border-radius: 999px; background: oklch(76% 0.15 164 / 0.12); color: var(--accent); font-family: var(--mono); font-size: 11px; margin-bottom: 12px; }
+    .pipeline { display: grid; gap: 10px; }
+    .lane {
+      display: grid;
+      grid-template-columns: 170px 1fr auto;
+      gap: 14px;
+      align-items: center;
+      padding: 14px;
+      border: 1px solid var(--line);
+      border-radius: var(--radius-md);
+      background: oklch(15% 0.014 230 / 0.78);
+    }
+    .lane b { font-family: var(--mono); color: var(--accent-2); font-size: 12px; }
+    .lane span { color: var(--muted); font-size: 13px; line-height: 1.5; }
+    .lane code, code { font-family: var(--mono); color: oklch(85% 0.09 164); }
+    .tabs { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 14px; }
+    .tab {
+      min-height: 40px;
+      padding: 0 14px;
+      border-radius: 999px;
+      border: 1px solid var(--line);
+      background: oklch(15% 0.014 230);
+      color: var(--muted);
+      cursor: pointer;
+      font: 12px var(--mono);
+      transition-property: transform, color, border-color, background-color;
+      transition-duration: 160ms;
+    }
+    .tab:hover, .tab[aria-selected="true"] { color: var(--text); border-color: var(--line-hot); background: oklch(22% 0.024 230); }
+    .tab:active { transform: scale(0.96); }
+    .tab-panel { display: none; }
+    .tab-panel.active { display: block; }
+    .artifact { width: 100%; border-collapse: collapse; overflow: hidden; border-radius: var(--radius-md); border: 1px solid var(--line); }
+    .artifact th, .artifact td { padding: 13px 14px; text-align: left; border-bottom: 1px solid oklch(42% 0.03 230 / 0.24); font-size: 13px; vertical-align: top; }
+    .artifact th { color: var(--accent); font-family: var(--mono); font-weight: 600; background: oklch(13% 0.014 230); }
+    .artifact td { color: var(--muted); line-height: 1.55; }
+    .artifact tr:last-child td { border-bottom: 0; }
+    .footer { margin-top: 34px; color: var(--quiet); font-size: 12px; line-height: 1.6; }
+    .hidden { display: none !important; }
+    @media (max-width: 980px) {
+      .shell { grid-template-columns: 1fr; }
+      .side { position: relative; height: auto; }
+      .hero { grid-template-columns: 1fr; }
+      .grid { grid-template-columns: 1fr; }
+      .lane { grid-template-columns: 1fr; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      html { scroll-behavior: auto; }
+      *, *:before, *:after { animation-duration: 0.001ms !important; transition-duration: 0.001ms !important; }
+    }
+  </style>
+</head>
+<body>
+  <a class="skip" href="#main-content">본문으로 건너뛰기</a>
+  <div class="shell">
+    <aside class="side" aria-label="문서 내비게이션">
+      <div class="brand">
+        <div class="mark" aria-hidden="true">sa</div>
+        <h1>stock-agents overview</h1>
+        <p>라이브 코드 기준 구현 지도. CLI, runner, artifact, resume 계약을 한 화면에서 확인한다.</p>
+      </div>
+      <label class="eyebrow" for="search">Search map</label>
+      <input class="search" id="search" type="search" placeholder="runner, resume, manifest..." aria-label="문서 검색">
+      <nav>
+        <a href="#status">상태</a>
+        <a href="#pipeline">파이프라인</a>
+        <a href="#contracts">계약</a>
+        <a href="#artifacts">산출물</a>
+        <a href="#limits">제한</a>
+      </nav>
+      <div class="switch">
+        <a href="userguide.html">사용 가이드 열기</a>
+        <a href="docs/architecture.md">architecture.md</a>
+        <a href="README.md">README.md</a>
+      </div>
+    </aside>
+    <main class="main" id="main-content">
+      <section class="hero" id="status">
+        <div class="terminal-card" data-search-item>
+          <div class="eyebrow">dark analyst ops</div>
+          <h2>파일로 넘기고, 스키마로 검증하고, 체크포인트로 이어간다.</h2>
+          <p>`stock-agents`는 TradingAgents식 다중 역할 흐름을 직접 LLM API 호출 대신 Hermes/Codex CLI 파일 핸드오프로 실행한다. 현재 브랜치의 확정 계약은 shallow pipeline, bounded repair, manifest-safe resume이다.</p>
+          <div class="cmd">stock-agents analyze SPY --date 2026-01-15 --runner mock --analysts market,news --debate-rounds 1 --risk-rounds 1 --depth shallow</div>
+        </div>
+        <div class="panel status-grid" data-search-item>
+          <div class="metric"><strong>8</strong><span>Typer commands: doctor, collect, build-tasks, run-task, validate, show-run, analyze, resume</span></div>
+          <div class="metric"><strong>3</strong><span>runner paths: mock, hermes, codex</span></div>
+          <div class="metric"><strong>1..3</strong><span>debate and risk round bounds</span></div>
+          <div class="metric"><strong>shallow</strong><span>only implemented depth</span></div>
+        </div>
+      </section>
+
+      <section id="pipeline">
+        <div class="section-head">
+          <h3>Pipeline board</h3>
+          <p>기본값은 market/news만 선택한다. `--analysts all`은 sentiment와 fundamentals를 추가한다.</p>
+        </div>
+        <div class="pipeline">
+          <div class="lane" data-search-item><b>01</b><span>Selected analysts write evidence-grounded `AnalystOutput` files from inputs.</span><code>market, news by default</code></div>
+          <div class="lane" data-search-item><b>02</b><span>Bull and bear researchers debate validated analyst outputs. Multi-round runs write `_roundN` ids.</span><code>--debate-rounds 1..3</code></div>
+          <div class="lane" data-search-item><b>03</b><span>Research manager resolves the final bull/bear round into a balanced recommendation.</span><code>05_research_manager</code></div>
+          <div class="lane" data-search-item><b>04</b><span>Trader converts research into a cautious proposal without guaranteed returns.</span><code>06_trader</code></div>
+          <div class="lane" data-search-item><b>05</b><span>Aggressive, conservative, and neutral risk analysts review the proposal. Multi-round runs use final round dependencies.</span><code>--risk-rounds 1..3</code></div>
+          <div class="lane" data-search-item><b>06</b><span>Portfolio manager emits the final decision and must set `not_financial_advice=true`.</span><code>10_portfolio_manager</code></div>
+        </div>
+      </section>
+
+      <section id="contracts">
+        <div class="section-head">
+          <h3>Contract panels</h3>
+          <p>코드에서 확인한 현재 보장과 안전장치다.</p>
+        </div>
+        <div class="tabs" role="tablist" aria-label="contract tabs">
+          <button class="tab" role="tab" aria-selected="true" data-tab="runner">Runner</button>
+          <button class="tab" role="tab" aria-selected="false" data-tab="resume">Resume</button>
+          <button class="tab" role="tab" aria-selected="false" data-tab="schema">Schema</button>
+        </div>
+        <div class="tab-panel active" id="runner" role="tabpanel">
+          <div class="grid">
+            <article class="card" data-search-item><span class="tag">mock</span><h4>Deterministic local path</h4><p>테스트와 회귀 확인용. 네트워크, 모델 로그인, API key 없이 JSON fixture를 만든다.</p></article>
+            <article class="card" data-search-item><span class="tag">hermes</span><h4>Hermes CLI handoff</h4><p>`hermes chat -Q`로 prompt를 넘긴다. provider와 model은 옵션이며 source는 `stock-agents`로 기록된다.</p></article>
+            <article class="card" data-search-item><span class="tag">codex</span><h4>Codex exec handoff</h4><p>`codex exec --sandbox workspace-write`를 사용하고 `logs/codex/`에 stdout JSONL, stderr, last message를 저장한다.</p></article>
+          </div>
+        </div>
+        <div class="tab-panel" id="resume" role="tabpanel">
+          <div class="grid">
+            <article class="card" data-search-item><span class="tag">manifest</span><h4>Graph shape locked</h4><p>`analyst_roles`, `debate_rounds`, `risk_rounds`는 manifest에서 재사용한다.</p></article>
+            <article class="card" data-search-item><span class="tag">reject</span><h4>Mismatches fail early</h4><p>명시 옵션이 manifest와 다르면 새 task를 실행하기 전에 실패한다.</p></article>
+            <article class="card" data-search-item><span class="tag">legacy</span><h4>Old risk rounds default</h4><p>기존 manifest에 `risk_rounds`가 없으면 1로 해석한다.</p></article>
+          </div>
+        </div>
+        <div class="tab-panel" id="schema" role="tabpanel">
+          <div class="grid">
+            <article class="card" data-search-item><span class="tag">pydantic</span><h4>Role schemas</h4><p>Analyst, Debate, ResearchPlan, TraderProposal, RiskArgument, PortfolioDecision 출력 모델이 있다.</p></article>
+            <article class="card" data-search-item><span class="tag">repair</span><h4>One bounded repair</h4><p>JSON 추출 또는 스키마 검증 실패 시 repair task를 한 번 만들고 재시도한다.</p></article>
+            <article class="card" data-search-item><span class="tag">advice guard</span><h4>Disclaimer required</h4><p>Portfolio decision은 `not_financial_advice=true`를 요구한다.</p></article>
+          </div>
+        </div>
+      </section>
+
+      <section id="artifacts">
+        <div class="section-head">
+          <h3>Artifact map</h3>
+          <p>분석이 끝나면 run directory 안에서 이 구조를 확인한다.</p>
+        </div>
+        <table class="artifact" data-search-item>
+          <thead><tr><th>Path</th><th>Meaning</th></tr></thead>
+          <tbody>
+            <tr><td><code>inputs/*.json</code></td><td>market, technical, fundamentals, news, sentiment fact artifacts</td></tr>
+            <tr><td><code>tasks/*.task.md</code></td><td>role-specific file handoff prompts with schema and dependency paths</td></tr>
+            <tr><td><code>outputs/*.raw.txt</code></td><td>raw runner stdout for each attempt</td></tr>
+            <tr><td><code>outputs/*.attemptN.json</code></td><td>validated canonical JSON output</td></tr>
+            <tr><td><code>outputs/*.latest.json</code></td><td>latest alias consumed by downstream roles</td></tr>
+            <tr><td><code>repairs/*.repair.task.md</code></td><td>repair prompt written after validation failure</td></tr>
+            <tr><td><code>checkpoints/state.json</code></td><td>status, current step, completed steps, output aliases</td></tr>
+            <tr><td><code>manifest.json</code></td><td>run identity, selected graph shape, input artifacts, final report</td></tr>
+            <tr><td><code>reports/final_report.md</code></td><td>portfolio manager synthesis plus disclaimer</td></tr>
+          </tbody>
+        </table>
+      </section>
+
+      <section id="limits">
+        <div class="section-head">
+          <h3>Limits that matter</h3>
+          <p>문서에서 과장하면 안 되는 현재 경계다.</p>
+        </div>
+        <div class="grid">
+          <article class="card" data-search-item><span class="tag">depth</span><h4>Only shallow depth</h4><p>`standard`와 `deep`은 enum 이름으로만 존재한다. CLI pipeline은 shallow만 받는다.</p></article>
+          <article class="card" data-search-item><span class="tag">data</span><h4>Provider placeholders</h4><p>Market은 yfinance optional, 실패 시 offline fixture. News, sentiment, fundamentals는 local placeholder다.</p></article>
+          <article class="card" data-search-item><span class="tag">resume</span><h4>No fact rebuild</h4><p>Resume은 role outputs를 이어가지만 누락되거나 손상된 fact inputs를 다시 만들지는 않는다.</p></article>
+        </div>
+      </section>
+      <p class="footer">Design direction: dark analyst ops. Typeface stack is system display plus monospace for command fidelity. Color is OKLCH-tuned dark teal with amber status accents. No external assets or network fonts are required.</p>
+    </main>
+  </div>
+  <script>
+    const search = document.querySelector('#search');
+    const items = [...document.querySelectorAll('[data-search-item]')];
+    search.addEventListener('input', () => {
+      const q = search.value.trim().toLowerCase();
+      for (const item of items) {
+        item.classList.toggle('hidden', q && !item.textContent.toLowerCase().includes(q));
+      }
+    });
+    const tabs = [...document.querySelectorAll('[data-tab]')];
+    tabs.forEach((tab) => {
+      tab.addEventListener('click', () => {
+        tabs.forEach((other) => other.setAttribute('aria-selected', String(other === tab)));
+        document.querySelectorAll('.tab-panel').forEach((panel) => panel.classList.toggle('active', panel.id === tab.dataset.tab));
+      });
+    });
+  </script>
+</body>
+</html>
