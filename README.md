@@ -16,7 +16,7 @@ Implemented:
 - Deterministic `MockRunner` for local tests without network, Hermes, Codex, or API keys.
 - Hermes CLI runner with provider/model/executable options.
 - Codex CLI runner with executable/model/reasoning-effort options and per-run logs under `logs/codex/`.
-- Shallow full pipeline with configurable analyst selection (`--analysts market,news` by default; `--analysts all` adds sentiment and fundamentals), configurable bull/bear debate rounds (`--debate-rounds 1` by default), and configurable risk-team debate rounds (`--risk-rounds 1` by default):
+- Shallow full pipeline with configurable analyst selection (`--analysts market,news` by default; `--analysts all` adds sentiment and fundamentals), configurable bull/bear debate rounds (`--debate-rounds 1` by default, valid range `1..3`), and configurable risk-team debate rounds (`--risk-rounds 1` by default, valid range `1..3`):
   - market analyst
   - sentiment analyst (when selected)
   - news analyst
@@ -190,7 +190,7 @@ stock-agents resume runs/SPY/2026-01-15/<run_id> \
   --language Korean
 ```
 
-`resume` reuses `analyst_roles`, `debate_rounds`, and `risk_rounds` recorded in `manifest.json` unless `--analysts`, `--debate-rounds`, or `--risk-rounds` is provided explicitly.
+`resume` reuses `analyst_roles`, `debate_rounds`, and `risk_rounds` recorded in `manifest.json`. Explicit `--analysts`, `--debate-rounds`, or `--risk-rounds` values are accepted only when they match the manifest; mismatches fail before new tasks run. Start a new run to change graph-shaping options.
 
 ## Tests
 

@@ -40,6 +40,10 @@ _RISK_ROLE_SEQUENCE = (
 _POST_RISK_ROLE_SEQUENCE = (
     Role.PORTFOLIO_MANAGER,
 )
+MIN_DEBATE_ROUNDS = 1
+MAX_DEBATE_ROUNDS = 3
+MIN_RISK_ROUNDS = 1
+MAX_RISK_ROUNDS = 3
 _ANALYST_ALIASES = {
     "market": Role.MARKET_ANALYST,
     "market_analyst": Role.MARKET_ANALYST,
@@ -94,14 +98,14 @@ def resolve_analyst_roles(analysts: AnalystSelection = None) -> tuple[Role, ...]
 
 
 def resolve_debate_rounds(debate_rounds: int) -> int:
-    if debate_rounds < 1:
-        raise ValueError("debate_rounds must be at least 1")
+    if not MIN_DEBATE_ROUNDS <= debate_rounds <= MAX_DEBATE_ROUNDS:
+        raise ValueError(f"debate_rounds must be between {MIN_DEBATE_ROUNDS} and {MAX_DEBATE_ROUNDS}")
     return debate_rounds
 
 
 def resolve_risk_rounds(risk_rounds: int) -> int:
-    if risk_rounds < 1:
-        raise ValueError("risk_rounds must be at least 1")
+    if not MIN_RISK_ROUNDS <= risk_rounds <= MAX_RISK_ROUNDS:
+        raise ValueError(f"risk_rounds must be between {MIN_RISK_ROUNDS} and {MAX_RISK_ROUNDS}")
     return risk_rounds
 
 
@@ -181,7 +185,7 @@ def _task_for_step(
         )
     if role in _RISK_ROLE_SEQUENCE:
         dependency_output_paths = list(task.dependency_output_paths)
-        updates: dict[str, object] = {"dependency_output_paths": dependency_output_paths}
+        risk_updates: dict[str, object] = {"dependency_output_paths": dependency_output_paths}
         if step.round_number is not None:
             task_id = f"{task.task_id}_round{step.round_number}"
             if step.round_number > 1:
@@ -190,14 +194,14 @@ def _task_for_step(
                     f"outputs/{ROLE_TASK_SPECS[risk_role].task_id}_round{previous_round}.latest.json"
                     for risk_role in _RISK_ROLE_SEQUENCE
                 )
-            updates.update(
+            risk_updates.update(
                 {
                     "task_id": task_id,
                     "output_path": f"outputs/{task_id}.attempt0.json",
                     "objective": f"Risk debate round {step.round_number} of {risk_rounds}. {task.objective}",
                 }
             )
-        return task.model_copy(update=updates)
+        return task.model_copy(update=risk_updates)
     if role is Role.PORTFOLIO_MANAGER and risk_rounds > 1:
         return task.model_copy(
             update={
@@ -229,40 +233,80 @@ def _record_run_options_in_manifest(
     manifest_path.write_text(json.dumps(manifest, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
 
 
-def _analyst_roles_for_resume(run_dir: Path, analysts: AnalystSelection) -> tuple[Role, ...]:
-    if analysts is not None:
-        return resolve_analyst_roles(analysts)
+def _resume_manifest(run_dir: Path) -> dict:
     manifest_path = run_dir / "manifest.json"
     try:
-        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        return json.loads(manifest_path.read_text(encoding="utf-8"))
     except FileNotFoundError:
-        return _DEFAULT_ANALYST_ROLES
+        return {}
+
+
+def _manifest_analyst_roles(manifest: dict) -> tuple[Role, ...]:
     saved_analysts = manifest.get("analyst_roles")
     if not saved_analysts:
         return _DEFAULT_ANALYST_ROLES
     return resolve_analyst_roles(saved_analysts)
 
 
-def _debate_rounds_for_resume(run_dir: Path, debate_rounds: int | None) -> int:
-    if debate_rounds is not None:
-        return resolve_debate_rounds(debate_rounds)
-    manifest_path = run_dir / "manifest.json"
-    try:
-        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
-    except FileNotFoundError:
-        return 1
+def _manifest_debate_rounds(manifest: dict) -> int:
     return resolve_debate_rounds(int(manifest.get("debate_rounds", 1)))
 
 
-def _risk_rounds_for_resume(run_dir: Path, risk_rounds: int | None) -> int:
-    if risk_rounds is not None:
-        return resolve_risk_rounds(risk_rounds)
-    manifest_path = run_dir / "manifest.json"
-    try:
-        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
-    except FileNotFoundError:
-        return 1
+def _manifest_risk_rounds(manifest: dict) -> int:
     return resolve_risk_rounds(int(manifest.get("risk_rounds", 1)))
+
+
+def _format_analyst_roles(roles: tuple[Role, ...]) -> str:
+    return ",".join(role.value for role in roles)
+
+
+def _raise_resume_option_mismatch(*, option: str, manifest_value: str, requested_value: str) -> None:
+    raise ValueError(
+        f"resume option mismatch for {option}: manifest has {manifest_value}, requested {requested_value}. "
+        "Start a new run to change graph-shaping options."
+    )
+
+
+def _analyst_roles_for_resume(run_dir: Path, analysts: AnalystSelection) -> tuple[Role, ...]:
+    manifest_roles = _manifest_analyst_roles(_resume_manifest(run_dir))
+    if analysts is None:
+        return manifest_roles
+    requested_roles = resolve_analyst_roles(analysts)
+    if requested_roles != manifest_roles:
+        _raise_resume_option_mismatch(
+            option="--analysts",
+            manifest_value=_format_analyst_roles(manifest_roles),
+            requested_value=_format_analyst_roles(requested_roles),
+        )
+    return manifest_roles
+
+
+def _debate_rounds_for_resume(run_dir: Path, debate_rounds: int | None) -> int:
+    manifest_rounds = _manifest_debate_rounds(_resume_manifest(run_dir))
+    if debate_rounds is None:
+        return manifest_rounds
+    requested_rounds = resolve_debate_rounds(debate_rounds)
+    if requested_rounds != manifest_rounds:
+        _raise_resume_option_mismatch(
+            option="--debate-rounds",
+            manifest_value=str(manifest_rounds),
+            requested_value=str(requested_rounds),
+        )
+    return manifest_rounds
+
+
+def _risk_rounds_for_resume(run_dir: Path, risk_rounds: int | None) -> int:
+    manifest_rounds = _manifest_risk_rounds(_resume_manifest(run_dir))
+    if risk_rounds is None:
+        return manifest_rounds
+    requested_rounds = resolve_risk_rounds(risk_rounds)
+    if requested_rounds != manifest_rounds:
+        _raise_resume_option_mismatch(
+            option="--risk-rounds",
+            manifest_value=str(manifest_rounds),
+            requested_value=str(requested_rounds),
+        )
+    return manifest_rounds
 
 
 def _checkpoint_key(task: AgentTask) -> str:

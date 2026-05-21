@@ -9,9 +9,18 @@ from stock_agents import __version__
 from stock_agents.data.collector import collect_all_facts
 from stock_agents.doctor import run_doctor
 from stock_agents.domain.enums import Role
-from stock_agents.orchestration.pipeline import resume_shallow_analysis, run_mock_analysis, run_shallow_analysis
+from stock_agents.orchestration.pipeline import (
+    MAX_DEBATE_ROUNDS,
+    MAX_RISK_ROUNDS,
+    MIN_DEBATE_ROUNDS,
+    MIN_RISK_ROUNDS,
+    resume_shallow_analysis,
+    run_mock_analysis,
+    run_shallow_analysis,
+)
 from stock_agents.orchestration.task_builder import build_agent_task, render_task
 from stock_agents.orchestration.validator import extract_json_object, validate_output_for_role
+from stock_agents.runners.base import AgentRunner
 from stock_agents.runners.codex import CodexRunner
 from stock_agents.runners.hermes import HermesRunner
 from stock_agents.runners.mock import MockRunner
@@ -196,8 +205,20 @@ def analyze(
     language: str = typer.Option("Korean", "--language", help="Output language for human-readable fields."),
     depth: str = typer.Option("shallow", "--depth", help="Pipeline depth. Only shallow is implemented."),
     analysts: str = typer.Option("market,news", "--analysts", help="Comma-separated analyst roles: market,news,sentiment,fundamentals, or all."),
-    debate_rounds: int = typer.Option(1, "--debate-rounds", min=1, help="Number of bull/bear research debate rounds."),
-    risk_rounds: int = typer.Option(1, "--risk-rounds", min=1, help="Number of risk-team debate rounds."),
+    debate_rounds: int = typer.Option(
+        1,
+        "--debate-rounds",
+        min=MIN_DEBATE_ROUNDS,
+        max=MAX_DEBATE_ROUNDS,
+        help="Number of bull/bear research debate rounds. Valid range: 1..3.",
+    ),
+    risk_rounds: int = typer.Option(
+        1,
+        "--risk-rounds",
+        min=MIN_RISK_ROUNDS,
+        max=MAX_RISK_ROUNDS,
+        help="Number of risk-team debate rounds. Valid range: 1..3.",
+    ),
     output_dir: Path = typer.Option(Path("runs"), "--output-dir", help="Base directory for run artifacts."),
     run_id: str | None = typer.Option(None, "--run-id", help="Optional deterministic run id for tests/reproducibility."),
 ) -> None:
@@ -268,11 +289,24 @@ def resume(
     language: str = typer.Option("Korean", "--language", help="Output language for human-readable fields."),
     depth: str = typer.Option("shallow", "--depth", help="Pipeline depth. Only shallow is implemented."),
     analysts: str | None = typer.Option(None, "--analysts", help="Comma-separated analyst roles used by the run; omit to reuse manifest/default."),
-    debate_rounds: int | None = typer.Option(None, "--debate-rounds", min=1, help="Number of bull/bear research debate rounds; omit to reuse manifest/default."),
-    risk_rounds: int | None = typer.Option(None, "--risk-rounds", min=1, help="Number of risk-team debate rounds; omit to reuse manifest/default."),
+    debate_rounds: int | None = typer.Option(
+        None,
+        "--debate-rounds",
+        min=MIN_DEBATE_ROUNDS,
+        max=MAX_DEBATE_ROUNDS,
+        help="Number of bull/bear research debate rounds; omit to reuse manifest/default. Valid range: 1..3.",
+    ),
+    risk_rounds: int | None = typer.Option(
+        None,
+        "--risk-rounds",
+        min=MIN_RISK_ROUNDS,
+        max=MAX_RISK_ROUNDS,
+        help="Number of risk-team debate rounds; omit to reuse manifest/default. Valid range: 1..3.",
+    ),
 ) -> None:
     """Resume an existing shallow analysis run from its checkpoint."""
     try:
+        selected_runner: AgentRunner
         if runner == "mock":
             selected_runner = MockRunner()
         elif runner == "hermes":
