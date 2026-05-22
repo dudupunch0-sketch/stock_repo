@@ -48,7 +48,7 @@ Current runners:
 - `inputs/news_facts.json`
 - `inputs/sentiment_facts.json`
 
-Market facts use `yfinance` over a 370-calendar-day lookback, normally yielding roughly one trading year of daily OHLCV bars. If yfinance is disabled through `STOCK_AGENTS_DISABLE_YFINANCE=1`, unavailable, or returns no data, 252 deterministic weekday fixture bars are used so local tests and mock analysis remain runnable. Technical facts include `sma_3`, `sma_5`, `sma_20`, `sma_50`, `sma_200`, `rsi_3`, and `rsi_14`. News facts use `yfinance` ticker news plus global macro searches over a seven-day lookback; failed news calls add warnings and keep the run moving. Sentiment and fundamentals currently use local placeholder fixture data.
+Market facts use `yfinance` over a 370-calendar-day lookback, normally yielding roughly one trading year of daily OHLCV bars. If yfinance is disabled through `STOCK_AGENTS_DISABLE_YFINANCE=1`, unavailable, or returns no data, 252 deterministic weekday fixture bars are used so local tests and mock analysis remain runnable. Technical facts include `sma_3`, `sma_5`, `sma_20`, `sma_50`, `sma_200`, `rsi_3`, and `rsi_14`. News facts use `yfinance` ticker news and global macro searches over a seven-day lookback; Korean six-digit tickers fall back to Naver Finance/Search only when yfinance ticker news is missing or below the target count. Failed news calls add warnings and keep the run moving. Sentiment and fundamentals currently use local placeholder fixture data.
 
 ## Shallow graph
 

@@ -368,7 +368,7 @@
         </div>
         <div class="grid">
           <article class="card" data-search-item><span class="tag">depth</span><h4>Only shallow depth</h4><p>`standard`와 `deep`은 enum 이름으로만 존재한다. CLI pipeline은 shallow만 받는다.</p></article>
-          <article class="card" data-search-item><span class="tag">data</span><h4>Provider coverage</h4><p>Market은 yfinance로 최소 1년 일봉을 수집한다. News는 yfinance ticker/global 검색을 사용한다. Sentiment와 fundamentals는 local placeholder다.</p></article>
+          <article class="card" data-search-item><span class="tag">data</span><h4>Provider coverage</h4><p>Market은 yfinance로 최소 1년 일봉을 수집한다. News는 yfinance를 먼저 쓰고, 한국 종목 뉴스가 없거나 부족할 때 네이버를 fallback으로 사용한다.</p></article>
           <article class="card" data-search-item><span class="tag">resume</span><h4>No fact rebuild</h4><p>Resume은 role outputs를 이어가지만 누락되거나 손상된 fact inputs를 다시 만들지는 않는다.</p></article>
         </div>
       </section>

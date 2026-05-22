@@ -40,7 +40,7 @@ Implemented:
 - `collect`, `build-tasks`, `run-task`, `validate`, `show-run`, `analyze`, and `resume` artifact commands.
 - Resume safety: `resume` reuses `analyst_roles`, `debate_rounds`, and `risk_rounds` from `manifest.json`. Explicit resume options are accepted only when they match the manifest.
 - Market OHLCV collection uses `yfinance` over a 370-calendar-day lookback, which normally yields roughly one trading year of daily bars.
-- News collection uses `yfinance` ticker news plus global macro searches over a seven-day lookback, with warnings instead of hard failures when news endpoints are unavailable.
+- News collection uses `yfinance` ticker/global macro searches over a seven-day lookback; Korean six-digit tickers fall back to Naver Finance/Search only when yfinance ticker news is missing or below the target count.
 - Technical facts include short and longer horizon indicators: `sma_3`, `sma_5`, `sma_20`, `sma_50`, `sma_200`, `rsi_3`, and `rsi_14`.
 - Final report rendering with a financial-advice disclaimer.
 
