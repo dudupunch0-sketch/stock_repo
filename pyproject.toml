@@ -13,7 +13,7 @@ dependencies = [
     "typer>=0.9",
     "rich>=13",
     "jinja2>=3",
-    "yfinance>=0.2.40",
+    "yfinance>=0.2.63",
 ]
 
 [project.optional-dependencies]

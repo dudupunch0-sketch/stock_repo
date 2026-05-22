@@ -48,7 +48,7 @@ Current runners:
 - `inputs/news_facts.json`
 - `inputs/sentiment_facts.json`
 
-Market facts use `yfinance` over a 370-calendar-day lookback, normally yielding roughly one trading year of daily OHLCV bars. If yfinance is disabled through `STOCK_AGENTS_DISABLE_YFINANCE=1`, unavailable, or returns no data, 252 deterministic weekday fixture bars are used so local tests and mock analysis remain runnable. Technical facts include `sma_3`, `sma_5`, `sma_20`, `sma_50`, `sma_200`, `rsi_3`, and `rsi_14`. News, sentiment, and fundamentals currently use local placeholder fixture data.
+Market facts use `yfinance` over a 370-calendar-day lookback, normally yielding roughly one trading year of daily OHLCV bars. If yfinance is disabled through `STOCK_AGENTS_DISABLE_YFINANCE=1`, unavailable, or returns no data, 252 deterministic weekday fixture bars are used so local tests and mock analysis remain runnable. Technical facts include `sma_3`, `sma_5`, `sma_20`, `sma_50`, `sma_200`, `rsi_3`, and `rsi_14`. News facts use `yfinance` ticker news plus global macro searches over a seven-day lookback; failed news calls add warnings and keep the run moving. Sentiment and fundamentals currently use local placeholder fixture data.
 
 ## Shallow graph
 
@@ -174,6 +174,7 @@ The final report is written to `reports/final_report.md`. It includes:
 - No parallel execution option is implemented.
 - No direct OpenAI API runner exists.
 - yfinance is installed as a runtime dependency, but deterministic fixture fallback remains available for offline tests and smoke runs.
-- News, sentiment, and fundamentals are placeholder/local fixture collectors.
+- News collection depends on yfinance news endpoints and can be disabled with `STOCK_AGENTS_DISABLE_NEWS=1`.
+- Sentiment and fundamentals are placeholder/local fixture collectors.
 - Resume does not regenerate fact inputs.
 - Real Hermes and Codex runs depend on local CLI authentication and may spend live model calls.

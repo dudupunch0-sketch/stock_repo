@@ -8,6 +8,7 @@ from stock_agents.cli import app
 
 def test_collect_writes_minimum_fact_artifacts(tmp_path, monkeypatch):
     monkeypatch.setenv("STOCK_AGENTS_DISABLE_YFINANCE", "1")
+    monkeypatch.setenv("STOCK_AGENTS_DISABLE_NEWS", "1")
     runner = CliRunner()
     result = runner.invoke(app, ["collect", "SPY", "--date", "2026-01-15", "--output-dir", str(tmp_path), "--run-id", "test-run"])
 

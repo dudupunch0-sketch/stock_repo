@@ -40,6 +40,7 @@ Implemented:
 - `collect`, `build-tasks`, `run-task`, `validate`, `show-run`, `analyze`, and `resume` artifact commands.
 - Resume safety: `resume` reuses `analyst_roles`, `debate_rounds`, and `risk_rounds` from `manifest.json`. Explicit resume options are accepted only when they match the manifest.
 - Market OHLCV collection uses `yfinance` over a 370-calendar-day lookback, which normally yields roughly one trading year of daily bars.
+- News collection uses `yfinance` ticker news plus global macro searches over a seven-day lookback, with warnings instead of hard failures when news endpoints are unavailable.
 - Technical facts include short and longer horizon indicators: `sma_3`, `sma_5`, `sma_20`, `sma_50`, `sma_200`, `rsi_3`, and `rsi_14`.
 - Final report rendering with a financial-advice disclaimer.
 
@@ -50,7 +51,8 @@ Known limitations:
 - Codex requires a working local `codex exec` login. `codex login status` alone is not enough. Use `stock-agents doctor --smoke-runner codex` to verify it.
 - Resume continues from checkpointed role outputs, but does not rebuild missing or corrupt fact inputs.
 - Market OHLCV falls back to 252 deterministic weekday fixture bars when `yfinance` is disabled, unavailable, or returns no data.
-- News, fundamentals, and sentiment collectors currently produce placeholder/local fixture facts.
+- News collection can be disabled with `STOCK_AGENTS_DISABLE_NEWS=1` for offline tests and smoke runs.
+- Fundamentals and sentiment collectors currently produce placeholder/local fixture facts.
 
 ## Install
 

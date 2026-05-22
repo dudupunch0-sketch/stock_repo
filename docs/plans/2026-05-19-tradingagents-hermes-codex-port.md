@@ -2,7 +2,7 @@
 
 > Historical plan. The live implementation contract is now `README.md`, `docs/architecture.md`, `overview.html`, and `userguide.html`.
 >
-> Current branch status: the package, Typer CLI, file-handoff task packages, mock/Hermes/Codex runners, shallow sequential analysis, analyst selection, bounded debate/risk rounds, validation/repair, checkpoint/resume, and final report path are implemented. Only `--depth shallow` is supported. News, sentiment, and fundamentals collectors are still placeholder/local fixture sources.
+> Current branch status: the package, Typer CLI, file-handoff task packages, mock/Hermes/Codex runners, shallow sequential analysis, analyst selection, bounded debate/risk rounds, validation/repair, checkpoint/resume, and final report path are implemented. Only `--depth shallow` is supported. Market and news use yfinance-backed collectors; sentiment and fundamentals collectors are still placeholder/local fixture sources.
 
 ## Original goal
 
@@ -71,7 +71,7 @@ runs/<ticker>/<date>/<run_id>/
 - `standard` or `deep` analysis depth.
 - Parallel role execution.
 - Direct OpenAI API runner.
-- Real provider-backed news, sentiment, and fundamentals collection beyond local placeholders.
+- Real provider-backed sentiment and fundamentals collection beyond local placeholders.
 - Fact-input reconstruction during resume.
 - TradingAgents source parity beyond the shallow file-handoff workflow.
 
