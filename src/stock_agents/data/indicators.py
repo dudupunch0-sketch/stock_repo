@@ -52,15 +52,19 @@ def latest_indicator_summary(*, ticker: str, trade_date: str | date, bars: list[
     indicator_values = {
         "sma_3": compute_sma(closes, window=3),
         "sma_5": compute_sma(closes, window=5),
+        "sma_20": compute_sma(closes, window=20),
+        "sma_50": compute_sma(closes, window=50),
+        "sma_200": compute_sma(closes, window=200),
         "rsi_3": compute_rsi(closes, window=3),
+        "rsi_14": compute_rsi(closes, window=14),
     }
     indicators = {
         name: [IndicatorPoint(date=bar.date, value=value) for bar, value in zip(bars, values, strict=True)]
         for name, values in indicator_values.items()
     }
     warnings: list[str] = []
-    if len(bars) < 5:
-        warnings.append("Fewer than five OHLCV bars were available; some indicators may be null.")
+    if len(bars) < 200:
+        warnings.append("Fewer than 200 OHLCV bars were available; long-horizon indicators may be null.")
     return TechnicalFacts(
         ticker=ticker,
         trade_date=trade_date,

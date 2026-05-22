@@ -39,6 +39,8 @@ Implemented:
 - JSON extraction, schema validation, canonical output files, latest output aliases, and one bounded repair attempt.
 - `collect`, `build-tasks`, `run-task`, `validate`, `show-run`, `analyze`, and `resume` artifact commands.
 - Resume safety: `resume` reuses `analyst_roles`, `debate_rounds`, and `risk_rounds` from `manifest.json`. Explicit resume options are accepted only when they match the manifest.
+- Market OHLCV collection uses `yfinance` over a 370-calendar-day lookback, which normally yields roughly one trading year of daily bars.
+- Technical facts include short and longer horizon indicators: `sma_3`, `sma_5`, `sma_20`, `sma_50`, `sma_200`, `rsi_3`, and `rsi_14`.
 - Final report rendering with a financial-advice disclaimer.
 
 Known limitations:
@@ -47,7 +49,7 @@ Known limitations:
 - The pipeline runs sequentially. There is no implemented parallel role execution option.
 - Codex requires a working local `codex exec` login. `codex login status` alone is not enough. Use `stock-agents doctor --smoke-runner codex` to verify it.
 - Resume continues from checkpointed role outputs, but does not rebuild missing or corrupt fact inputs.
-- Market OHLCV uses optional `yfinance` when available, then falls back to deterministic offline fixture bars.
+- Market OHLCV falls back to 252 deterministic weekday fixture bars when `yfinance` is disabled, unavailable, or returns no data.
 - News, fundamentals, and sentiment collectors currently produce placeholder/local fixture facts.
 
 ## Install
@@ -57,6 +59,15 @@ From the repository root:
 ```bash
 python -m pip install -e .
 ```
+
+For the local convenience runner, use:
+
+```bash
+./run_stock_agents.sh NVDA
+./run_stock_agents.sh ask
+```
+
+The runner creates `.venv` when needed, installs the package, defaults quick ticker analysis to the Codex runner, and ensures the `yfinance` dependency is present.
 
 ## Check the environment
 

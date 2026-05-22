@@ -133,6 +133,12 @@
           <div class="step-header"><h3>Editable install</h3><button class="copy" data-copy="python -m pip install -e .">copy</button></div>
           <pre>python -m pip install -e .</pre>
         </article>
+        <article class="step">
+          <div class="step-header"><h3>Convenience runner</h3><button class="copy" data-copy="./run_stock_agents.sh NVDA">copy</button></div>
+          <pre>./run_stock_agents.sh NVDA
+./run_stock_agents.sh ask</pre>
+          <p>`run_stock_agents.sh`는 `.venv`와 yfinance 의존성을 확인하고, 티커 shortcut은 기본적으로 Codex runner를 사용한다.</p>
+        </article>
       </section>
 
       <section id="smoke" data-search-item>
@@ -222,7 +228,7 @@ stock-agents doctor --smoke-runner codex</pre>
         <div class="head"><h2>7. 주의사항</h2><p>현재 지원 범위를 넘는 사용은 문서화된 기능이 아니다.</p></div>
         <div class="cards">
           <article class="card"><h3>Only shallow</h3><p>`--depth shallow`만 구현되어 있다. standard/deep 분석은 아직 없다.</p></article>
-          <article class="card"><h3>Fact placeholders</h3><p>Market facts는 optional yfinance와 offline fixture를 사용한다. News, sentiment, fundamentals는 placeholder/local fixture다.</p></article>
+          <article class="card"><h3>Market data</h3><p>Market facts는 yfinance로 최소 1년 범위의 일봉을 수집한다. 실패하거나 비활성화된 경우 252개 weekday fixture bar로 대체된다.</p></article>
           <article class="card"><h3>Research only</h3><p>최종 report는 투자 조언이 아니다. 모든 데이터와 판단은 독립적으로 검증해야 한다.</p></article>
         </div>
       </section>
