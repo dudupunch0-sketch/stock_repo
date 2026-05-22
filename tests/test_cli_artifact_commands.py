@@ -68,3 +68,4 @@ def test_show_run_cli_summarizes_checkpoint_outputs_and_report(tmp_path):
     assert "Current step: complete" in result.output
     assert "portfolio_manager: outputs/10_portfolio_manager.latest.json" in result.output
     assert f"Final report: {run.run_dir / 'reports/final_report.md'}" in result.output
+    assert f"Final report HTML: {run.run_dir / 'reports/final_report.html'}" in result.output

@@ -88,7 +88,9 @@ def test_resume_shallow_analysis_continues_from_first_incomplete_role_without_ov
     assert "market_analyst" not in runner.calls
     assert len(result.completed_roles) == 10
     assert result.final_report_path == run_dir / "reports/final_report.md"
+    assert result.final_report_html_path == run_dir / "reports/final_report.html"
     assert result.final_report_path.exists()
+    assert result.final_report_html_path.exists()
     assert failed_raw_path.read_text(encoding="utf-8") == "raw output from failed news attempt\n"
     resumed_task_text = (run_dir / "tasks/02_news_analyst.task.md").read_text(encoding="utf-8")
     assert "output_path: outputs/02_news_analyst.attempt1.json" in resumed_task_text
@@ -107,5 +109,6 @@ def test_resume_cli_runs_mock_resume_for_partial_run(tmp_path):
     assert result.exit_code == 0, result.output
     assert str(run_dir) in result.output
     assert str(run_dir / "reports/final_report.md") in result.output
+    assert str(run_dir / "reports/final_report.html") in result.output
     state = json.loads((run_dir / "checkpoints/state.json").read_text(encoding="utf-8"))
     assert state["status"] == "completed"

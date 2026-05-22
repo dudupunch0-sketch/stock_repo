@@ -124,6 +124,7 @@ runs/<ticker>/<date>/<run_id>/
   outputs/
   repairs/
   reports/final_report.md
+  reports/final_report.html
   checkpoints/state.json
   manifest.json
   logs/codex/
@@ -139,7 +140,7 @@ Safe path behavior:
 
 ## Manifest and checkpoint
 
-`manifest.json` records the run identity, input artifacts, completed roles, selected analyst roles, debate rounds, risk rounds, and final report path.
+`manifest.json` records the run identity, input artifacts, completed roles, selected analyst roles, debate rounds, risk rounds, and final report paths.
 
 `checkpoints/state.json` records run status, current step, completed steps, and output aliases. `show-run` displays this checkpoint in human-readable form.
 
@@ -155,7 +156,7 @@ Safe path behavior:
 
 ## Report contract
 
-The final report is written to `reports/final_report.md`. It includes:
+The final report is written to `reports/final_report.md` and `reports/final_report.html`. Both include:
 
 - date
 - rating

@@ -165,7 +165,7 @@ stock-agents doctor --smoke-runner codex</pre>
           <article class="step">
             <div class="step-header"><h3>Deterministic mock run</h3><button class="copy" data-copy="stock-agents analyze SPY --date 2026-01-15 --runner mock --language Korean --analysts market,news --debate-rounds 1 --risk-rounds 1 --depth shallow">copy</button></div>
             <pre>stock-agents analyze SPY   --date 2026-01-15   --runner mock   --language Korean   --analysts market,news   --debate-rounds 1   --risk-rounds 1   --depth shallow</pre>
-            <p>명령은 run directory와 final report path를 출력한다.</p>
+            <p>명령은 run directory, Markdown final report path, HTML final report path를 출력한다.</p>
           </article>
           <article class="step">
             <div class="step-header"><h3>All analysts plus multi-round debates</h3><span class="pill">bounded 1..3</span></div>
@@ -212,14 +212,15 @@ stock-agents doctor --smoke-runner codex</pre>
         <table>
           <thead><tr><th>File or directory</th><th>Use</th></tr></thead>
           <tbody>
-            <tr><td><code>manifest.json</code></td><td>run id, ticker, trade date, input artifacts, selected analysts, debate/risk rounds, final report path</td></tr>
+            <tr><td><code>manifest.json</code></td><td>run id, ticker, trade date, input artifacts, selected analysts, debate/risk rounds, final report paths</td></tr>
             <tr><td><code>checkpoints/state.json</code></td><td>run status, current step, completed steps, output path aliases</td></tr>
             <tr><td><code>tasks/*.task.md</code></td><td>role prompt package with input paths, dependency paths, schema, evidence rules</td></tr>
             <tr><td><code>outputs/*.raw.txt</code></td><td>raw runner stdout</td></tr>
             <tr><td><code>outputs/*.attemptN.json</code></td><td>validated canonical output</td></tr>
             <tr><td><code>outputs/*.latest.json</code></td><td>latest alias for downstream dependencies</td></tr>
             <tr><td><code>repairs/*.repair.task.md</code></td><td>repair prompt after validation failure</td></tr>
-            <tr><td><code>reports/final_report.md</code></td><td>final portfolio manager synthesis with disclaimer</td></tr>
+            <tr><td><code>reports/final_report.md</code></td><td>Markdown final portfolio manager synthesis with disclaimer</td></tr>
+            <tr><td><code>reports/final_report.html</code></td><td>browser-readable final report with summary metrics, risk list, evidence table, and disclaimer</td></tr>
           </tbody>
         </table>
       </section>

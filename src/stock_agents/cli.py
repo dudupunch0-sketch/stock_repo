@@ -174,6 +174,9 @@ def show_run(
     final_report = state.get("outputs", {}).get("final_report")
     if final_report:
         typer.echo(f"Final report: {run_dir / final_report}")
+    final_report_html = state.get("outputs", {}).get("final_report_html")
+    if final_report_html:
+        typer.echo(f"Final report HTML: {run_dir / final_report_html}")
 
 
 @app.command()
@@ -274,6 +277,7 @@ def analyze(
         raise typer.BadParameter(str(exc)) from exc
     typer.echo(str(result.run_dir))
     typer.echo(str(result.final_report_path))
+    typer.echo(str(result.final_report_html_path))
 
 
 @app.command()
@@ -333,6 +337,7 @@ def resume(
         raise typer.BadParameter(str(exc)) from exc
     typer.echo(str(result.run_dir))
     typer.echo(str(result.final_report_path))
+    typer.echo(str(result.final_report_html_path))
 
 
 def main() -> None:

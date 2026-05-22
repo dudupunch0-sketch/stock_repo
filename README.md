@@ -2,7 +2,7 @@
 
 `stock-agents` is a TradingAgents-inspired CLI that uses file-handoff task packages instead of direct LLM API calls.
 
-It collects deterministic fact artifacts, renders role-specific task prompts, runs an external runner (`mock`, `hermes`, or `codex`), validates JSON outputs with Pydantic schemas, performs one bounded repair attempt, checkpoints the run, and renders a final markdown report.
+It collects deterministic fact artifacts, renders role-specific task prompts, runs an external runner (`mock`, `hermes`, or `codex`), validates JSON outputs with Pydantic schemas, performs one bounded repair attempt, checkpoints the run, and renders final Markdown and HTML reports.
 
 This project is research assistance only, not financial advice. No claim is guaranteed. Verify data independently.
 
@@ -42,7 +42,7 @@ Implemented:
 - Market OHLCV collection uses `yfinance` over a 370-calendar-day lookback, which normally yields roughly one trading year of daily bars.
 - News collection uses `yfinance` ticker/global macro searches over a seven-day lookback; Korean six-digit tickers fall back to Naver Finance/Search only when yfinance ticker news is missing or below the target count.
 - Technical facts include short and longer horizon indicators: `sma_3`, `sma_5`, `sma_20`, `sma_50`, `sma_200`, `rsi_3`, and `rsi_14`.
-- Final report rendering with a financial-advice disclaimer.
+- Final report rendering to Markdown and browser-readable HTML with a financial-advice disclaimer.
 
 Known limitations:
 
@@ -94,7 +94,8 @@ stock-agents analyze SPY   --date 2026-01-15   --runner mock   --language Korean
 The command prints:
 
 1. the run directory
-2. the final report path
+2. the Markdown final report path
+3. the HTML final report path
 
 Example layout:
 
@@ -110,6 +111,7 @@ runs/SPY/2026-01-15/<run_id>/
   outputs/
   repairs/
   reports/final_report.md
+  reports/final_report.html
   checkpoints/state.json
   manifest.json
 ```

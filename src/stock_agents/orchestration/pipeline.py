@@ -15,7 +15,7 @@ from stock_agents.orchestration.checkpoints import CheckpointState, new_checkpoi
 from stock_agents.orchestration.repair import build_repair_task
 from stock_agents.orchestration.task_builder import ROLE_TASK_SPECS, build_agent_task, render_task
 from stock_agents.orchestration.validator import extract_json_object, validate_output_for_role
-from stock_agents.reporting.renderer import render_final_report
+from stock_agents.reporting.renderer import render_final_report, render_final_report_html
 from stock_agents.runners.base import AgentRunner
 from stock_agents.runners.mock import MockRunner
 from stock_agents.schemas.outputs import PortfolioDecisionOutput
@@ -67,6 +67,7 @@ class PipelineStep:
 class PipelineResult(BaseModel):
     run_dir: Path
     final_report_path: Path
+    final_report_html_path: Path
     completed_roles: list[Role]
 
 
@@ -231,6 +232,36 @@ def _record_run_options_in_manifest(
     manifest["debate_rounds"] = debate_rounds
     manifest["risk_rounds"] = risk_rounds
     manifest_path.write_text(json.dumps(manifest, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+
+
+def _write_final_reports(
+    *,
+    run_dir: Path,
+    decision: PortfolioDecisionOutput,
+    language: str,
+) -> tuple[Path, Path]:
+    report_dir = run_dir / "reports"
+    report_dir.mkdir(parents=True, exist_ok=True)
+
+    final_report_path = report_dir / "final_report.md"
+    final_report_path.write_text(render_final_report(decision, language=language), encoding="utf-8")
+
+    final_report_html_path = report_dir / "final_report.html"
+    final_report_html_path.write_text(render_final_report_html(decision, language=language), encoding="utf-8")
+
+    return final_report_path, final_report_html_path
+
+
+def _record_final_report_artifacts(
+    *,
+    manifest: dict,
+    state: CheckpointState,
+) -> None:
+    artifacts = manifest.setdefault("artifacts", {})
+    artifacts["final_report"] = "reports/final_report.md"
+    artifacts["final_report_html"] = "reports/final_report.html"
+    state.outputs["final_report"] = "reports/final_report.md"
+    state.outputs["final_report_html"] = "reports/final_report.html"
 
 
 def _resume_manifest(run_dir: Path) -> dict:
@@ -432,14 +463,15 @@ def run_shallow_analysis(
     if final_decision is None or not isinstance(final_decision, PortfolioDecisionOutput):
         raise RuntimeError("pipeline did not produce a portfolio decision")
 
-    report_text = render_final_report(final_decision, language=language)
-    final_report_path = run_dir / "reports" / "final_report.md"
-    final_report_path.parent.mkdir(parents=True, exist_ok=True)
-    final_report_path.write_text(report_text, encoding="utf-8")
+    final_report_path, final_report_html_path = _write_final_reports(
+        run_dir=run_dir,
+        decision=final_decision,
+        language=language,
+    )
 
     manifest_path = run_dir / "manifest.json"
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
-    manifest.setdefault("artifacts", {})["final_report"] = "reports/final_report.md"
+    _record_final_report_artifacts(manifest=manifest, state=state)
     manifest["completed_roles"] = [role.value for role in completed_roles]
     manifest["analyst_roles"] = [role.value for role in analyst_roles]
     manifest["debate_rounds"] = debate_round_count
@@ -447,11 +479,15 @@ def run_shallow_analysis(
     manifest_path.write_text(json.dumps(manifest, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
 
     state.completed_steps.append("render_final_report")
-    state.outputs["final_report"] = "reports/final_report.md"
     state.status = "completed"
     state.current_step = "complete"
     write_checkpoint(run_dir, state)
-    return PipelineResult(run_dir=run_dir, final_report_path=final_report_path, completed_roles=completed_roles)
+    return PipelineResult(
+        run_dir=run_dir,
+        final_report_path=final_report_path,
+        final_report_html_path=final_report_html_path,
+        completed_roles=completed_roles,
+    )
 
 
 def resume_shallow_analysis(
@@ -539,14 +575,15 @@ def resume_shallow_analysis(
     if final_decision is None or not isinstance(final_decision, PortfolioDecisionOutput):
         raise RuntimeError("pipeline did not produce a portfolio decision")
 
-    report_text = render_final_report(final_decision, language=language)
-    final_report_path = selected_run_dir / "reports" / "final_report.md"
-    final_report_path.parent.mkdir(parents=True, exist_ok=True)
-    final_report_path.write_text(report_text, encoding="utf-8")
+    final_report_path, final_report_html_path = _write_final_reports(
+        run_dir=selected_run_dir,
+        decision=final_decision,
+        language=language,
+    )
 
     manifest_path = selected_run_dir / "manifest.json"
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
-    manifest.setdefault("artifacts", {})["final_report"] = "reports/final_report.md"
+    _record_final_report_artifacts(manifest=manifest, state=state)
     manifest["completed_roles"] = [role.value for role in completed_roles]
     manifest["analyst_roles"] = [role.value for role in analyst_roles]
     manifest["debate_rounds"] = debate_round_count
@@ -555,11 +592,15 @@ def resume_shallow_analysis(
 
     if "render_final_report" not in state.completed_steps:
         state.completed_steps.append("render_final_report")
-    state.outputs["final_report"] = "reports/final_report.md"
     state.status = "completed"
     state.current_step = "complete"
     write_checkpoint(selected_run_dir, state)
-    return PipelineResult(run_dir=selected_run_dir, final_report_path=final_report_path, completed_roles=completed_roles)
+    return PipelineResult(
+        run_dir=selected_run_dir,
+        final_report_path=final_report_path,
+        final_report_html_path=final_report_html_path,
+        completed_roles=completed_roles,
+    )
 
 
 def _validated_latest_output(run_dir: Path, state: CheckpointState, task: AgentTask):
